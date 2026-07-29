@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kaparthy.dev/contracts/v0.1.0/evaluation-result.schema.json",
+  "title": "EvaluationResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "decision", "target", "rubric", "confidence"],
+  "properties": {
+    "id": { "type": "string" },
+    "decision": { "type": "string", "enum": ["pass", "fail", "revise"] },
+    "target": { "type": "string" },
+    "rubric": { "type": "string", "minLength": 1 },
+    "evidence_edge_ids": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "required_fixes": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "notes": { "type": "string" },
+    "run_id": { "type": "string" },
+    "created_at": { "type": "string", "format": "date-time" }
+  }
+}

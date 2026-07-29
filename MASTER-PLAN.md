@@ -184,10 +184,10 @@ Every important output must be reconstructible to:
 | Phase | Name                          | Duration   | Exit Criteria                                      | Status      |
 |-------|-------------------------------|------------|----------------------------------------------------|-------------|
 | 0     | Foundations                   | 1–2 weeks  | Contracts frozen, auth + audit skeleton live       | **Complete**|
-| 1     | Measured Loop                 | 2–3 weeks  | All Loop acceptance tests green                    | Authorized  |
-| 2     | DAG Collaboration             | 2–3 weeks  | Multi-agent DAG tests green                        | Pending     |
-| 3     | Evaluation Plane & Budgets    | 1–2 weeks  | Traceability + budget enforcement green            | Pending     |
-| 4     | Knowledge-Graph Overlay       | 3–4 weeks  | Graph acceptance tests green                       | Pending     |
+| 1     | Measured Loop                 | 2–3 weeks  | All Loop acceptance tests green                    | **Complete**|
+| 2     | DAG Collaboration             | 2–3 weeks  | Multi-agent DAG tests green                        | **Complete**|
+| 3     | Evaluation Plane & Budgets    | 1–2 weeks  | Traceability + budget enforcement green            | **Complete**|
+| 4     | Knowledge-Graph Overlay       | 3–4 weeks  | Graph acceptance tests green                       | **Complete**|
 | 5     | Integration & Hardening       | 2–3 weeks  | Full E2E + security + recovery under load          | Pending     |
 | 6     | Production Pilot              | Ongoing    | Real workload metrics + runbooks                   | Pending     |
 
@@ -205,22 +205,24 @@ Every important output must be reconstructible to:
 | 2026-07-28 | Approval model changed: IT Architect decides; executive decisions final  | Executive          |
 | 2026-07-28 | OpenAPI + JSON Schemas frozen as `v0.1.0-frozen`                         | IT Architect       |
 | 2026-07-28 | Phase 0 complete; Phase 1 (Measured Loop) authorized                     | IT Architect       |
+| 2026-07-28 | ADR-001 storage (SQLite + bare Git + content-addressed artifacts)        | IT Architect       |
+| 2026-07-28 | ADR-002 sections 1–8 vertical build authorized non-stop                  | IT Architect       |
+| 2026-07-28 | Phases 1–4 implemented; §8 acceptance suite is the gate                  | IT Architect       |
 
 ---
 
 ## 11. Current Status & Immediate Next Actions
 
-**Status:** Phase 0 complete. Contracts frozen. Phase 1 authorized.
+**Status:** Sections 1–8 delivered. Contracts live under `contracts/v0.1.0/`. Phases 1–4 complete subject to green acceptance tests. Phase 5 (hardening) is next.
 
 **Immediate Actions**
 
-1. **Technical Lead** — Stand up service skeletons and CI pipeline that enforce the frozen contracts and the twelve invariants.  
-2. **Technical Lead** — Implement Control Document store + Trial ledger + Git integration for the measured loop.  
-3. **Architect** — Publish ADRs for concrete storage choices (Artifact Plane, Graph Plane, AuditTrail) within 48 hours of Phase 1 kickoff.  
-4. **Security** — Confirm per-agent API-key model and sandbox boundaries.
+1. **Technical Lead** — Keep CI green on `tests/acceptance` for every PR.  
+2. **Architect** — Phase 5 threat model + recovery under load.  
+3. **Security** — Replace dev API keys with rotated per-agent secrets and sandbox boundaries.
 
 **Single most important action right now**  
-Begin Phase 1 implementation against the frozen contracts. No feature code outside the contracts is permitted.
+Run the §8 acceptance suite and begin Phase 5 hardening without relaxing frozen contracts.
 
 ---
 

@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kaparthy.dev/contracts/v0.1.0/trial.schema.json",
+  "title": "Trial",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "control_document_id",
+    "parent_commit",
+    "agent_id",
+    "hypothesis",
+    "status"
+  ],
+  "properties": {
+    "id": { "type": "string" },
+    "control_document_id": { "type": "string" },
+    "commit_hash": { "type": ["string", "null"] },
+    "parent_commit": { "type": "string" },
+    "agent_id": { "type": "string" },
+    "hypothesis": { "type": "string" },
+    "metric_name": { "type": ["string", "null"] },
+    "metric_value": { "type": ["number", "null"] },
+    "status": {
+      "type": "string",
+      "enum": ["proposed", "running", "kept", "reverted", "crash", "rejected"]
+    },
+    "wall_time_seconds": { "type": ["number", "null"] },
+    "diff_summary": { "type": ["string", "null"] },
+    "ledger_entry_uri": { "type": ["string", "null"] },
+    "error": { "type": ["string", "null"] },
+    "created_at": { "type": "string", "format": "date-time" },
+    "finished_at": { "type": ["string", "null"], "format": "date-time" }
+  }
+}
