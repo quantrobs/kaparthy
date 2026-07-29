@@ -21,3 +21,22 @@ def test_claim_requires_source() -> None:
     with pytest.raises(InvariantError) as ei:
         InvariantGuard.require_claim_source({"id": "c1", "type": "Claim", "provenance": {}})
     assert ei.value.code == 5
+
+
+def test_metric_override_blocked() -> None:
+    with pytest.raises(InvariantError) as ei:
+        InvariantGuard.reject_metric_override_for_keep(0.1)
+    assert ei.value.code == 2
+
+
+def test_mutable_allowlist() -> None:
+    with pytest.raises(InvariantError):
+        InvariantGuard.reject_outside_mutable(["other.py"], ["train.py"])
+    InvariantGuard.reject_outside_mutable(["train.py"], ["train.py"])
+
+
+def test_oversized_diff() -> None:
+    with pytest.raises(InvariantError):
+        InvariantGuard.reject_oversized_diff(["a"] * 50, 10)
+    with pytest.raises(InvariantError):
+        InvariantGuard.reject_oversized_diff(["a"], InvariantGuard.MAX_DIFF_BYTES + 1)

@@ -148,6 +148,21 @@ def create_app() -> FastAPI:
     def board_list() -> list[dict[str, Any]]:
         return get_platform().dag.board_list()
 
+    @app.post("/dag/context")
+    def dag_context(body: dict[str, Any] | None = None) -> dict[str, Any]:
+        body = body or {}
+        p = get_platform()
+        ctl = None
+        if body.get("control_document_id"):
+            ctl = p.control.get(body["control_document_id"])
+        return p.dag.build_context_pack(
+            leaf_hash=body.get("leaf_hash"),
+            token_budget=int(body.get("token_budget", 2000)),
+            control_summary=ctl,
+            best_metric=body.get("best_metric"),
+            kept_count=body.get("kept_count"),
+        )
+
     # --- Graph ---
     @app.post("/graph/updates", status_code=201)
     def graph_update(body: dict[str, Any]) -> dict[str, Any]:

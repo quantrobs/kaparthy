@@ -121,6 +121,7 @@ def test_subgraph_respects_token_budget(platform: Platform) -> None:
 
     small = platform.graph.subgraph(seed_ids=["n0"], hops=10, token_budget=50)
     assert small["approx_tokens_used"] <= 50 or small["truncated"] is True
+    assert small["token_accounting"] == "approx_chars_div_4"
     assert "n0" in {n["id"] for n in small["nodes"]}
     # under tight budget, cannot include entire chain
     assert len(small["edges"]) < len(edges)

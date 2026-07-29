@@ -224,6 +224,7 @@ class GraphService:
             "token_budget": token_budget,
             "approx_tokens_used": used // 4,
             "truncated": used // 4 >= token_budget or len(included_edges) < len(serialized_edges),
+            "token_accounting": "approx_chars_div_4",
         }
 
     def _upsert_node(self, node: dict[str, Any]) -> None:

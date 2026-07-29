@@ -37,10 +37,8 @@ class GitWorkspace:
 
     def commit(self, message: str) -> str:
         self.add_all()
-        # Allow empty commits only if needed for baseline
         status = self._run("status", "--porcelain", check=False)
         if not status.stdout.strip():
-            # create empty commit only if no HEAD yet
             try:
                 return self.head()
             except GitError:
@@ -63,13 +61,15 @@ class GitWorkspace:
         r = self._run("diff", "--stat", a, b, check=False)
         return r.stdout
 
-    def show_files_changed(self, parent: str, commit: str) -> list[str]:
-        r = self._run("diff", "--name-only", parent, commit, check=False)
-        return [line for line in r.stdout.splitlines() if line.strip()]
-
     def is_clean(self) -> bool:
         r = self._run("status", "--porcelain", check=False)
         return not r.stdout.strip()
+
+    def parents_of(self, commit_hash: str) -> list[str]:
+        r = self._run("rev-parse", f"{commit_hash}^@", check=False)
+        if r.returncode != 0:
+            return []
+        return [line.strip() for line in r.stdout.splitlines() if line.strip()]
 
 
 class BareGitHub:
@@ -87,7 +87,6 @@ class BareGitHub:
             )
 
     def receive_from_workspace(self, workspace: Path, ref: str = "refs/heads/experiments") -> str:
-        """Push HEAD of workspace into bare repo under a unique ref; return commit hash."""
         head = subprocess.run(
             ["git", "rev-parse", "HEAD"],
             cwd=workspace,
@@ -95,7 +94,6 @@ class BareGitHub:
             text=True,
             check=True,
         ).stdout.strip()
-        # Ensure remote exists
         remotes = subprocess.run(
             ["git", "remote"],
             cwd=workspace,
@@ -106,6 +104,14 @@ class BareGitHub:
         if "hub" not in remotes.split():
             subprocess.run(
                 ["git", "remote", "add", "hub", str(self.path)],
+                cwd=workspace,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        else:
+            subprocess.run(
+                ["git", "remote", "set-url", "hub", str(self.path)],
                 cwd=workspace,
                 check=True,
                 capture_output=True,
@@ -130,26 +136,84 @@ class BareGitHub:
         )
         return r.returncode == 0 and r.stdout.strip() == "commit"
 
+    def parents_of(self, commit_hash: str) -> list[str]:
+        r = subprocess.run(
+            ["git", "rev-parse", f"{commit_hash}^@"],
+            cwd=self.path,
+            capture_output=True,
+            text=True,
+        )
+        if r.returncode != 0:
+            return []
+        return [line.strip() for line in r.stdout.splitlines() if line.strip()]
+
+    def resolve_hash(self, prefix: str) -> str | None:
+        if self.has_commit(prefix):
+            return prefix
+        r = subprocess.run(
+            ["git", "rev-parse", "--verify", prefix],
+            cwd=self.path,
+            capture_output=True,
+            text=True,
+        )
+        if r.returncode == 0:
+            return r.stdout.strip()
+        return None
+
     def checkout_to(self, commit: str, dest: Path) -> None:
+        """Materialize commit into dest as a full working repo (Git objects from bare hub)."""
+        import shutil
+
         dest = Path(dest)
-        dest.mkdir(parents=True, exist_ok=True)
-        if not (dest / ".git").exists():
-            subprocess.run(["git", "init"], cwd=dest, check=True, capture_output=True)
-            subprocess.run(
-                ["git", "remote", "add", "hub", str(self.path)],
-                cwd=dest,
-                check=True,
-                capture_output=True,
-            )
+        if dest.exists():
+            shutil.rmtree(dest)
+        dest.mkdir(parents=True)
         subprocess.run(
-            ["git", "fetch", "hub", commit],
+            ["git", "init"],
             cwd=dest,
             check=True,
             capture_output=True,
             text=True,
         )
         subprocess.run(
-            ["git", "checkout", commit],
+            ["git", "config", "user.email", "agent@kaparthy.local"],
+            cwd=dest,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "config", "user.name", "Agentic Platform"],
+            cwd=dest,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["git", "remote", "add", "hub", str(self.path)],
+            cwd=dest,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        # Pull all refs/objects from bare hub (custom experiment refs included)
+        fetch = subprocess.run(
+            ["git", "fetch", "hub", "+refs/*:refs/remotes/hub/*"],
+            cwd=dest,
+            capture_output=True,
+            text=True,
+        )
+        if fetch.returncode != 0:
+            # Fallback: mirror-style fetch
+            subprocess.run(
+                ["git", "fetch", "hub", "+refs/*:refs/*"],
+                cwd=dest,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        subprocess.run(
+            ["git", "checkout", "-f", commit],
             cwd=dest,
             check=True,
             capture_output=True,

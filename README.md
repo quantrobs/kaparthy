@@ -1,9 +1,24 @@
 # Agentic Research Platform (kaparthy)
 
-Production-oriented implementation of the **Agentic Research Platform** Master Plan (sections 1–8): measured loops, commit DAGs (AgentHub), Software 3.0 control/evaluation/budgets, and a knowledge-graph overlay.
+Production-oriented implementation of the **Agentic Research Platform** Master Plan: measured loops, commit DAGs (AgentHub), Software 3.0 control/evaluation/budgets, and a knowledge-graph overlay.
 
-**Contract version:** `v0.1.0-frozen`  
-**Authority:** IT Architect
+**Contract version:** `v0.1.0-frozen` schemas · OpenAPI `0.1.1` (additive context pack)  
+**Authority:** IT Architect  
+**Phase:** 4.5 complete (Kaparthy correction wave)
+
+## Kaparthy correction (must-know)
+
+| Rule | Enforcement |
+|------|-------------|
+| **Hostile metrics** | `kept` only from real `run_command` stdout parse — `metric_override` always `rejected` |
+| **Git is truth** | DAG parents/objects from bare Git; no orphan `register_node` in normal mode |
+| **Context pack** | `ah context` / `POST /dag/context` — bounded agent context (`token_accounting: approx_chars_div_4`) |
+| **Athlete** | `ah agent-run --loop <id>` heuristic agent (no LLM required) |
+| **KG humility** | Graph writes **off** by default on agent path (`--enable-graph-writes` to opt in) |
+
+> A ratchet that cannot be lied to is worth more than a knowledge graph that can be written by anything.
+
+Token estimates use **chars/4** — not a tokenizer; do not bill from them.
 
 ## Architecture (four layers)
 
@@ -13,20 +28,6 @@ Production-oriented implementation of the **Agentic Research Platform** Master P
 | 2 Commit DAG | Experiment lineage + message board | `agentic_platform.dag` |
 | 3 Software 3.0 | Control docs, evaluators, budgets | `control`, `eval`, `runs` |
 | 4 Knowledge Graph | Durable knowledge + provenance | `agentic_platform.graph` |
-
-## APIs (frozen)
-
-| API | Base path |
-|-----|-----------|
-| Control Document | `/control` |
-| Loop Execution | `/loops` |
-| DAG / AgentHub | `/dag` |
-| Knowledge Graph | `/graph` |
-| Evaluation | `/eval` |
-| Budget & Audit | `/runs` |
-
-Schemas: `contracts/v0.1.0/schemas/`  
-OpenAPI: `contracts/v0.1.0/openapi.yaml`
 
 ## Quick start
 
@@ -42,33 +43,29 @@ Run API:
 ```powershell
 $env:AGENTIC_DATA = ".\data"
 agentic-api
-# or: python -m agentic_platform.api.server
 ```
 
-CLI (`ah`):
+CLI:
 
 ```powershell
 ah leaves
-ah children <hash>
-ah lineage <hash>
-ah board
+ah context --budget-tokens 2000
+ah agent-run --loop <loop_id> --max-trials 8
 ```
 
-Default agent key for local dev: header `X-Agent-Key: architect-dev-key`.
+Dev agent key: `X-Agent-Key: architect-dev-key`.
 
-## Acceptance tests (§8)
+## Demo workspace
 
-```powershell
-pytest tests/acceptance -q
-```
-
-Covers loop reproducibility, crash recovery, protected paths, multi-agent DAG, board restart, claim provenance, reversible entity merge, token-budgeted subgraphs, full audit trail, and budget exhaustion.
+`examples/demo_workspace/` — tiny CPU trainer with mutable `LR`/`STEPS`/`HIDDEN`/`L2`, protected `prepare.py`, living `program.md`.
 
 ## ADRs
 
 - `docs/adr/ADR-001-storage-and-runtime.md`
 - `docs/adr/ADR-002-phase-scope-sections-1-8.md`
+- `docs/adr/ADR-003-git-authoritative-dag.md`
+- `docs/adr/ADR-004-kaparthy-correction-exit.md`
 
 ## Invariants
 
-See Master Plan §7 — enforced in `agentic_platform.invariants`.
+See Master Plan §7 — `agentic_platform.invariants`.

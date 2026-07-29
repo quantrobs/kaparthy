@@ -18,7 +18,8 @@ class ControlService:
         data.setdefault("id", new_id("ctl_"))
         data.setdefault("version", "1")
         data.setdefault("created_at", utc_now_iso())
-        # Validate via pydantic then schema
+        if not data.get("program_md"):
+            data["program_md"] = self.render_program(data)
         doc = ControlDocument.model_validate(data)
         as_dict = doc.model_dump(mode="json", exclude_none=True)
         assert_valid("ControlDocument", as_dict)
@@ -35,3 +36,41 @@ class ControlService:
     def list(self) -> list[dict[str, Any]]:
         rows = self.db.fetchall("SELECT payload FROM control_documents ORDER BY created_at")
         return [self.db.loads(r["payload"]) for r in rows]
+
+    @staticmethod
+    def render_program(ctl: dict[str, Any]) -> str:
+        """Materialize living program.md from structured control + freeform notes."""
+        free = (ctl.get("program_md") or "").strip()
+        header = (free + "\n\n") if free else ""
+        metric = ctl.get("metric") or {}
+        comparison = ctl.get("comparison") or {}
+        protected = ", ".join(ctl.get("protected_paths") or []) or "(none)"
+        mutable = ", ".join(ctl.get("mutable_paths") or []) or "(any non-protected)"
+        return "\n".join(
+            [
+                header + "# Control Program (rendered)",
+                "",
+                f"## Objective\n{ctl.get('objective', '')}",
+                "",
+                f"## Metric\n- name: {metric.get('name')}",
+                f"- direction: {metric.get('direction')}",
+                f"- parse_regex: {metric.get('parse_regex')}",
+                f"- comparison: {comparison.get('function')}",
+                "",
+                f"## Surfaces\n- protected (never edit): {protected}",
+                f"- mutable allowlist: {mutable}",
+                f"- run_command: `{ctl.get('run_command')}`",
+                f"- time_budget_seconds: {ctl.get('time_budget_seconds')}",
+                "",
+                f"## Keep criteria\n{ctl.get('keep_criteria', '')}",
+                "",
+                f"## Escalation\n{ctl.get('escalation_criteria', '')}",
+                "",
+                f"## Exhaustion\n{ctl.get('exhaustion_criteria', '')}",
+                "",
+                "One change at a time. Revert on no improvement. Log hypothesis every trial.",
+                "Never edit protected paths. Prefer small diffs.",
+                "Write to the knowledge graph only if a future decision becomes cheaper.",
+                "",
+            ]
+        )

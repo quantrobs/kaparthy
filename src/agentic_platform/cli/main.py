@@ -7,6 +7,7 @@ from typing import Optional
 
 import typer
 
+from agentic_platform.agents.simple_loop_agent import SimpleLoopAgent
 from agentic_platform.core.paths import default_data_dir
 from agentic_platform.core.platform import Platform
 
@@ -84,6 +85,41 @@ def board_post(
 def board_list() -> None:
     p = _platform()
     typer.echo(json.dumps(p.dag.board_list(), indent=2))
+    p.close()
+
+
+@app.command("context")
+def context_cmd(
+    leaf: Optional[str] = typer.Option(None, "--leaf"),
+    budget: int = typer.Option(2000, "--budget-tokens"),
+    control_id: Optional[str] = typer.Option(None, "--control"),
+) -> None:
+    """Build a bounded Software 3.0 context pack for an agent."""
+    p = _platform()
+    ctl = p.control.get(control_id) if control_id else None
+    pack = p.dag.build_context_pack(
+        leaf_hash=leaf,
+        token_budget=budget,
+        control_summary=ctl,
+    )
+    typer.echo(json.dumps(pack, indent=2))
+    p.close()
+
+
+@app.command("agent-run")
+def agent_run(
+    loop_id: str = typer.Option(..., "--loop"),
+    max_trials: int = typer.Option(8, "--max-trials"),
+    agent: str = typer.Option("simple-agent", "--agent", "-a"),
+    enable_graph: bool = typer.Option(False, "--enable-graph-writes"),
+) -> None:
+    """Run the heuristic simple loop agent (no LLM required)."""
+    p = _platform()
+    runner = SimpleLoopAgent(
+        p, loop_id=loop_id, agent_id=agent, enable_graph_writes=enable_graph
+    )
+    result = runner.run(max_trials=max_trials)
+    typer.echo(json.dumps(result, indent=2))
     p.close()
 
 

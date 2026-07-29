@@ -13,6 +13,9 @@ class InvariantError(Exception):
 class InvariantGuard:
     """Enforce Master Plan §7 invariants at service boundaries."""
 
+    MAX_CHANGED_FILES = 20
+    MAX_DIFF_BYTES = 200_000
+
     @staticmethod
     def reject_protected_edits(changed_files: list[str], protected_paths: list[str]) -> None:
         """INV-01: Evaluation surface is never modified by agents."""
@@ -22,6 +25,42 @@ class InvariantGuard:
                 p = prot.replace("\\", "/").lstrip("./")
                 if norm == p or norm.startswith(p.rstrip("/") + "/"):
                     raise InvariantError(1, f"attempt to edit protected path: {path}")
+
+    @staticmethod
+    def reject_outside_mutable(
+        changed_files: list[str],
+        mutable_paths: list[str] | None,
+    ) -> None:
+        """If mutable allowlist is set, only those paths may change."""
+        if not mutable_paths:
+            return
+        allowed = [m.replace("\\", "/").lstrip("./") for m in mutable_paths]
+        for path in changed_files:
+            norm = path.replace("\\", "/").lstrip("./")
+            ok = any(
+                norm == a or norm.startswith(a.rstrip("/") + "/") for a in allowed
+            )
+            if not ok:
+                raise InvariantError(1, f"edit outside mutable_paths: {path}")
+
+    @staticmethod
+    def reject_oversized_diff(changed_files: list[str], total_bytes: int) -> None:
+        if len(changed_files) > InvariantGuard.MAX_CHANGED_FILES:
+            raise InvariantError(
+                1,
+                f"too many changed files: {len(changed_files)} > {InvariantGuard.MAX_CHANGED_FILES}",
+            )
+        if total_bytes > InvariantGuard.MAX_DIFF_BYTES:
+            raise InvariantError(
+                1,
+                f"diff too large: {total_bytes} > {InvariantGuard.MAX_DIFF_BYTES} bytes",
+            )
+
+    @staticmethod
+    def reject_metric_override_for_keep(metric_override: float | None) -> None:
+        """INV-02: metric_override can never produce a kept trial."""
+        if metric_override is not None:
+            raise InvariantError(2, "metric_override cannot keep (hostile evaluation)")
 
     @staticmethod
     def require_metric_improvement(
@@ -47,14 +86,11 @@ class InvariantGuard:
 
     @staticmethod
     def require_runnable(workspace: Path) -> None:
-        """INV-03: working tree left runnable (clean after revert)."""
-        # Soft check: path exists; callers ensure git reset --hard
         if not workspace.exists():
             raise InvariantError(3, f"workspace missing: {workspace}")
 
     @staticmethod
     def require_claim_source(node: dict[str, Any]) -> None:
-        """INV-05: every Claim has ≥1 Source or is explicitly marked inference."""
         if node.get("type") != "Claim":
             return
         prov = node.get("provenance") or {}
@@ -64,7 +100,6 @@ class InvariantGuard:
 
     @staticmethod
     def require_artifact_authorship(node: dict[str, Any]) -> None:
-        """INV-06: every Artifact has authoring AgentRun and version."""
         if node.get("type") != "Artifact":
             return
         props = node.get("properties") or {}
@@ -76,13 +111,11 @@ class InvariantGuard:
 
     @staticmethod
     def require_evaluation_rubric(eval_doc: dict[str, Any]) -> None:
-        """INV-07: every Evaluation references a concrete rubric."""
         if not eval_doc.get("rubric"):
             raise InvariantError(7, "evaluation missing rubric")
 
     @staticmethod
     def enforce_budget(budget: dict[str, Any], consumed: dict[str, Any]) -> str | None:
-        """INV-11: no run may exceed BudgetDeclaration. Returns stop reason or None."""
         mapping = [
             ("max_model_calls", "model_calls", "model_calls"),
             ("max_sub_agents", "sub_agents", "sub_agents"),

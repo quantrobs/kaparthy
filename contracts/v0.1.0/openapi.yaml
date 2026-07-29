@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: Agentic Research Platform API
-  version: 0.1.0-frozen
+  version: 0.1.1
   description: Frozen interface contracts for Control, Loops, DAG, Graph, Eval, and Runs.
 servers:
   - url: http://localhost:8080
@@ -162,6 +162,14 @@ paths:
       responses:
         "200":
           description: Message board posts
+  /dag/context:
+    post:
+      operationId: dagContext
+      tags: [dag]
+      summary: Bounded Software 3.0 context pack (token_accounting approx_chars_div_4)
+      responses:
+        "200":
+          description: Context pack
   /graph/updates:
     post:
       operationId: applyGraphUpdate

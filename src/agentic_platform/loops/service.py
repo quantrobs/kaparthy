@@ -16,6 +16,72 @@ from agentic_platform.storage.artifacts import ArtifactStore
 from agentic_platform.storage.db import Database
 from agentic_platform.storage.git_repo import GitWorkspace
 
+_DEMO_TRAIN = '''\
+"""Tiny CPU trainer — hostile metric; agents may edit hyperparameters only."""
+from __future__ import annotations
+
+import math
+
+# === mutable hyperparameters (agent may edit) ===
+LR = 0.05
+STEPS = 40
+HIDDEN = 8
+L2 = 0.0
+SEED = 0
+# === end mutable ===
+
+
+def main() -> None:
+    n = 64
+    xs = [(i / n) * 2 - 1 for i in range(n)]
+    ys = [math.sin(3 * x) + 0.1 * x for x in xs]
+
+    def rnd(i: int) -> float:
+        return math.sin(SEED * 12.9898 + i * 78.233) * 43758.5453 % 1.0
+
+    w1 = [rnd(i) * 0.5 - 0.25 for i in range(HIDDEN)]
+    b1 = [rnd(100 + i) * 0.1 for i in range(HIDDEN)]
+    w2 = [rnd(200 + i) * 0.5 - 0.25 for i in range(HIDDEN)]
+    b2 = rnd(300) * 0.1
+
+    for _ in range(STEPS):
+        g_w1 = [0.0] * HIDDEN
+        g_b1 = [0.0] * HIDDEN
+        g_w2 = [0.0] * HIDDEN
+        g_b2 = 0.0
+        for x, y in zip(xs, ys):
+            h = [math.tanh(w1[j] * x + b1[j]) for j in range(HIDDEN)]
+            pred = sum(w2[j] * h[j] for j in range(HIDDEN)) + b2
+            err = pred - y
+            g_b2 += 2 * err
+            for j in range(HIDDEN):
+                g_w2[j] += 2 * err * h[j]
+                dh = 2 * err * w2[j] * (1 - h[j] * h[j])
+                g_w1[j] += dh * x
+                g_b1[j] += dh
+        scale = LR / n
+        for j in range(HIDDEN):
+            w1[j] -= scale * (g_w1[j] + 2 * L2 * w1[j])
+            b1[j] -= scale * g_b1[j]
+            w2[j] -= scale * (g_w2[j] + 2 * L2 * w2[j])
+        b2 -= scale * g_b2
+
+    loss = 0.0
+    for x, y in zip(xs, ys):
+        h = [math.tanh(w1[j] * x + b1[j]) for j in range(HIDDEN)]
+        pred = sum(w2[j] * h[j] for j in range(HIDDEN)) + b2
+        err = pred - y
+        loss += err * err
+    val_loss = loss / n + L2 * (sum(w * w for w in w1) + sum(w * w for w in w2))
+    print(f"val_loss={val_loss:.6f}")
+
+
+if __name__ == "__main__":
+    main()
+'''
+
+_DEMO_PREPARE = "# protected evaluation surface — agents must never modify this file\nprint('ready')\n"
+
 
 class LoopService:
     """Measured ratchet loop: inspect → propose → commit → evaluate → keep/revert → log."""
@@ -46,25 +112,25 @@ class LoopService:
         git = GitWorkspace(workspace)
         git.init()
 
-        # Ensure baseline commit exists
         try:
             head = git.head()
         except Exception:
-            # seed baseline files if empty
-            if not any(workspace.iterdir()):
-                (workspace / "train.py").write_text(
-                    "metric = 1.0\nprint(f'val_loss={metric}')\n",
-                    encoding="utf-8",
-                )
-                (workspace / "prepare.py").write_text(
-                    "# protected evaluation surface\nprint('ready')\n",
-                    encoding="utf-8",
-                )
-                (workspace / "program.md").write_text(
-                    ctl.get("program_md") or ctl["objective"],
-                    encoding="utf-8",
-                )
+            self._seed_workspace(workspace, ctl)
             head = git.commit("baseline")
+
+        program_path = workspace / "program.md"
+        if not program_path.exists():
+            program_path.write_text(ControlService.render_program(ctl), encoding="utf-8")
+            try:
+                head = git.commit("add program.md")
+            except Exception:
+                head = git.head()
+
+        best_metric: float | None = None
+        try:
+            best_metric = self._run_and_parse_metric(workspace, ctl)
+        except Exception:
+            best_metric = None
 
         loop_id = new_id("loop_")
         payload = {
@@ -72,7 +138,7 @@ class LoopService:
             "control_document_id": control_document_id,
             "workspace_path": str(workspace.resolve()),
             "best_commit": head,
-            "best_metric": None,
+            "best_metric": best_metric,
             "status": "running",
             "agent_id": agent_id,
             "created_at": utc_now_iso(),
@@ -84,7 +150,7 @@ class LoopService:
                 control_document_id,
                 str(workspace.resolve()),
                 head,
-                None,
+                best_metric,
                 "running",
                 self.db.dumps(payload),
                 payload["created_at"],
@@ -92,6 +158,15 @@ class LoopService:
         )
         self.audit_hook(None, "loop.started", payload)
         return payload
+
+    def _seed_workspace(self, workspace: Path, ctl: dict[str, Any]) -> None:
+        workspace.mkdir(parents=True, exist_ok=True)
+        if not (workspace / "train.py").exists():
+            (workspace / "train.py").write_text(_DEMO_TRAIN, encoding="utf-8")
+        if not (workspace / "prepare.py").exists():
+            (workspace / "prepare.py").write_text(_DEMO_PREPARE, encoding="utf-8")
+        program = ctl.get("program_md") or ControlService.render_program(ctl)
+        (workspace / "program.md").write_text(program, encoding="utf-8")
 
     def get(self, loop_id: str) -> dict[str, Any] | None:
         row = self.db.fetchone("SELECT payload FROM loops WHERE id = ?", (loop_id,))
@@ -109,12 +184,19 @@ class LoopService:
         if not loop:
             raise ValueError(f"unknown loop: {loop_id}")
         kept = [t for t in self.list_trials(loop_id) if t["status"] == "kept"]
+        reproducible = False
+        if loop.get("best_commit") is not None and loop.get("best_metric") is not None:
+            try:
+                repro = self.reproduce_metric(loop_id, loop["best_commit"])
+                reproducible = bool(repro.get("matches_recorded_best"))
+            except Exception:
+                reproducible = False
         return {
             "loop_id": loop_id,
             "best_commit": loop.get("best_commit"),
             "best_metric": loop.get("best_metric"),
             "kept_count": len(kept),
-            "reproducible_from_commit": True,
+            "reproducible_from_commit": reproducible,
         }
 
     def propose_trial(
@@ -153,8 +235,11 @@ class LoopService:
         }
 
         try:
+            # C1: override can never keep
+            if metric_override is not None:
+                InvariantGuard.reject_metric_override_for_keep(metric_override)
+
             trial["status"] = "running"
-            # Apply edits
             if patch_fn:
                 patch_fn(workspace)
             if file_edits:
@@ -163,7 +248,6 @@ class LoopService:
                     target.parent.mkdir(parents=True, exist_ok=True)
                     target.write_text(content, encoding="utf-8")
 
-            # Detect changed files before commit for protected-path check
             git.add_all()
             status = subprocess.run(
                 ["git", "status", "--porcelain"],
@@ -172,12 +256,20 @@ class LoopService:
                 text=True,
                 check=True,
             )
-            changed = []
+            changed: list[str] = []
             for line in status.stdout.splitlines():
                 if len(line) >= 4:
                     changed.append(line[3:].strip().strip('"'))
 
             InvariantGuard.reject_protected_edits(changed, ctl.get("protected_paths") or [])
+            InvariantGuard.reject_outside_mutable(changed, ctl.get("mutable_paths"))
+
+            total_bytes = 0
+            for rel in changed:
+                p = workspace / rel
+                if p.is_file():
+                    total_bytes += p.stat().st_size
+            InvariantGuard.reject_oversized_diff(changed, total_bytes)
 
             if simulate_crash:
                 raise RuntimeError("simulated crash mid-training")
@@ -186,12 +278,8 @@ class LoopService:
             trial["commit_hash"] = commit_hash
             trial["diff_summary"] = git.diff_stat(parent, commit_hash)[:2000]
 
-            # Evaluate
             t0 = time.time()
-            if metric_override is not None:
-                metric_value = float(metric_override)
-            else:
-                metric_value = self._run_and_parse_metric(workspace, ctl)
+            metric_value = self._run_and_parse_metric(workspace, ctl)
             wall = time.time() - t0
             trial["metric_name"] = ctl["metric"]["name"]
             trial["metric_value"] = metric_value
@@ -217,11 +305,17 @@ class LoopService:
         except InvariantError as e:
             trial["status"] = "rejected"
             trial["error"] = str(e)
-            git.reset_hard(parent)
+            try:
+                git.reset_hard(parent)
+            except Exception:
+                pass
         except Exception as e:
             trial["status"] = "crash"
             trial["error"] = str(e)
-            git.reset_hard(parent)
+            try:
+                git.reset_hard(parent)
+            except Exception:
+                pass
             InvariantGuard.require_runnable(workspace)
 
         trial["finished_at"] = utc_now_iso()
@@ -259,7 +353,6 @@ class LoopService:
 
     def _run_and_parse_metric(self, workspace: Path, ctl: dict[str, Any]) -> float:
         cmd = ctl["run_command"]
-        # Bound wall time softly via timeout
         timeout = float(ctl.get("time_budget_seconds") or 60)
         result = subprocess.run(
             cmd,
@@ -273,11 +366,12 @@ class LoopService:
         pattern = ctl["metric"]["parse_regex"]
         m = re.search(pattern, output)
         if not m:
-            raise RuntimeError(f"metric not found with regex {pattern!r} in output: {output[:500]}")
+            raise RuntimeError(
+                f"metric not found (rc={result.returncode}) regex={pattern!r}: {output[:500]}"
+            )
         return float(m.group(1))
 
     def reproduce_metric(self, loop_id: str, commit_hash: str | None = None) -> dict[str, Any]:
-        """Acceptance: best metric reproducible from commit hash alone."""
         loop = self.get(loop_id)
         if not loop:
             raise ValueError(f"unknown loop: {loop_id}")
@@ -289,11 +383,11 @@ class LoopService:
         target = commit_hash or loop["best_commit"]
         git.reset_hard(target)
         metric = self._run_and_parse_metric(workspace, ctl)
+        recorded = loop.get("best_metric")
+        matches = recorded is None or abs(metric - float(recorded)) < 1e-5
         return {
             "commit_hash": target,
             "metric_name": ctl["metric"]["name"],
             "metric_value": metric,
-            "matches_recorded_best": (
-                loop.get("best_metric") is None or abs(metric - float(loop["best_metric"])) < 1e-9
-            ),
+            "matches_recorded_best": matches,
         }

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import os
 from pathlib import Path
 from typing import Any, Callable
 
@@ -12,7 +14,7 @@ from agentic_platform.storage.git_repo import BareGitHub, GitWorkspace
 
 
 class DagService:
-    """AgentHub-style commit DAG + message board."""
+    """AgentHub-style commit DAG + message board. Git is authoritative for topology."""
 
     def __init__(
         self,
@@ -35,9 +37,8 @@ class DagService:
         message: str | None = None,
     ) -> dict[str, Any]:
         workspace = Path(workspace_path)
-        git = GitWorkspace(workspace)
         commit_hash = self.bare.receive_from_workspace(workspace)
-        parents = self._parents_of(workspace, commit_hash)
+        parents = self.bare.parents_of(commit_hash)
         node = {
             "hash": commit_hash,
             "parents": parents,
@@ -50,41 +51,30 @@ class DagService:
             "created_at": utc_now_iso(),
             "board_post_ids": [],
         }
-        CommitNode.model_validate(node)
-        assert_valid("CommitNode", {k: v for k, v in node.items() if v is not None})
-
-        existing = self.db.fetchone("SELECT hash FROM commit_nodes WHERE hash = ?", (commit_hash,))
-        if existing:
-            self.db.execute(
-                "UPDATE commit_nodes SET parents = ?, agent_id = ?, payload = ?, status = ? WHERE hash = ?",
-                (
-                    self.db.dumps(parents),
-                    agent_id,
-                    self.db.dumps(node),
-                    status,
-                    commit_hash,
-                ),
-            )
-        else:
-            self.db.execute(
-                "INSERT INTO commit_nodes (hash, parents, agent_id, payload, status, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (
-                    commit_hash,
-                    self.db.dumps(parents),
-                    agent_id,
-                    self.db.dumps(node),
-                    status,
-                    node["created_at"],
-                ),
-            )
-        self.audit_hook(None, "dag.push", node)
-        return node
+        return self._store_annotation(node)
 
     def register_node(self, node: dict[str, Any]) -> dict[str, Any]:
-        """Register metadata without requiring a workspace push (tests / multi-agent)."""
+        """Annotate a commit that already exists in the bare repo (Git is truth)."""
         data = dict(node)
+        commit_hash = data.get("hash")
+        if not commit_hash:
+            raise ValueError("hash required")
+
+        allow_orphan = os.environ.get("AGENTIC_DAG_ALLOW_ORPHAN_META") == "1"
+        if not self.bare.has_commit(commit_hash):
+            if not allow_orphan:
+                raise ValueError(
+                    f"commit not in bare Git hub (topology must be real): {commit_hash[:12]}"
+                )
+        else:
+            # Git wins parent disputes
+            data["parents"] = self.bare.parents_of(commit_hash)
+
         data.setdefault("created_at", utc_now_iso())
         data.setdefault("board_post_ids", [])
+        return self._store_annotation(data)
+
+    def _store_annotation(self, data: dict[str, Any]) -> dict[str, Any]:
         CommitNode.model_validate(data)
         assert_valid("CommitNode", {k: v for k, v in data.items() if v is not None})
         self.db.execute(
@@ -95,35 +85,55 @@ class DagService:
                 data["agent_id"],
                 self.db.dumps(data),
                 data["status"],
-                data["created_at"],
+                data.get("created_at") or utc_now_iso(),
             ),
         )
+        self.audit_hook(None, "dag.push", data)
         return data
 
     def fetch(self, commit_hash: str) -> dict[str, Any] | None:
         row = self.db.fetchone("SELECT payload FROM commit_nodes WHERE hash = ?", (commit_hash,))
         if row:
             return self.db.loads(row["payload"])
-        # Prefix match
-        rows = self.db.fetchall("SELECT payload FROM commit_nodes WHERE hash LIKE ?", (f"{commit_hash}%",))
+        rows = self.db.fetchall(
+            "SELECT payload FROM commit_nodes WHERE hash LIKE ?", (f"{commit_hash}%",)
+        )
         if len(rows) == 1:
             return self.db.loads(rows[0]["payload"])
+        # Try bare resolve
+        full = self.bare.resolve_hash(commit_hash)
+        if full:
+            row = self.db.fetchone("SELECT payload FROM commit_nodes WHERE hash = ?", (full,))
+            if row:
+                return self.db.loads(row["payload"])
         return None
 
     def children(self, commit_hash: str) -> list[dict[str, Any]]:
         full = self._resolve_hash(commit_hash)
+        if not full:
+            return []
         out = []
         for row in self.db.fetchall("SELECT payload FROM commit_nodes"):
             node = self.db.loads(row["payload"])
-            if full in (node.get("parents") or []):
+            parents = node.get("parents") or []
+            # Prefer live Git parents when object exists
+            if self.bare.has_commit(node["hash"]):
+                parents = self.bare.parents_of(node["hash"])
+            if full in parents:
                 out.append(node)
         return out
 
     def leaves(self) -> list[dict[str, Any]]:
-        all_nodes = [self.db.loads(r["payload"]) for r in self.db.fetchall("SELECT payload FROM commit_nodes")]
-        parents_of_someone = set()
+        all_nodes = [
+            self.db.loads(r["payload"]) for r in self.db.fetchall("SELECT payload FROM commit_nodes")
+        ]
+        # Build parent set from Git when possible
+        parents_of_someone: set[str] = set()
         for n in all_nodes:
-            for p in n.get("parents") or []:
+            parents = n.get("parents") or []
+            if self.bare.has_commit(n["hash"]):
+                parents = self.bare.parents_of(n["hash"])
+            for p in parents:
                 parents_of_someone.add(p)
         return [n for n in all_nodes if n["hash"] not in parents_of_someone]
 
@@ -135,9 +145,21 @@ class DagService:
             seen.add(current)
             node = self.fetch(current)
             if not node:
-                break
+                # Synthetic minimal node from Git only
+                if self.bare.has_commit(current):
+                    node = {
+                        "hash": current,
+                        "parents": self.bare.parents_of(current),
+                        "agent_id": "unknown",
+                        "status": "evidence",
+                    }
+                else:
+                    break
             path.append(node)
-            parents = node.get("parents") or []
+            if self.bare.has_commit(current):
+                parents = self.bare.parents_of(current)
+            else:
+                parents = node.get("parents") or []
             current = parents[0] if parents else None
         return path
 
@@ -182,6 +204,111 @@ class DagService:
         rows = self.db.fetchall("SELECT payload FROM board_posts ORDER BY created_at")
         return [self.db.loads(r["payload"]) for r in rows]
 
+    def build_context_pack(
+        self,
+        leaf_hash: str | None = None,
+        token_budget: int = 2000,
+        control_summary: dict[str, Any] | None = None,
+        best_metric: float | None = None,
+        kept_count: int | None = None,
+        lineage_k: int = 8,
+        board_m: int = 5,
+    ) -> dict[str, Any]:
+        """Software 3.0 bounded context for a new agent (chars/4 token approx)."""
+        char_budget = token_budget * 4
+        sections: list[str] = []
+        truncated = False
+
+        essentials: list[str] = [
+            "CONTEXT PACK — bounded; do not assume full history.",
+            f"token_accounting: approx_chars_div_4; budget={token_budget}",
+        ]
+        if control_summary:
+            # Protected paths first so tight budgets still retain the evaluation boundary
+            essentials.append(
+                f"protected_paths: {control_summary.get('protected_paths')}"
+            )
+            essentials.append(
+                f"mutable_paths: {control_summary.get('mutable_paths')}"
+            )
+            essentials.append(
+                f"metric: {control_summary.get('metric')} "
+                f"comparison: {control_summary.get('comparison')}"
+            )
+            essentials.append(
+                "CONTROL: "
+                + json.dumps(
+                    {
+                        "objective": control_summary.get("objective"),
+                        "run_command": control_summary.get("run_command"),
+                    },
+                    sort_keys=True,
+                )
+            )
+        if best_metric is not None:
+            essentials.append(f"BEST_METRIC: {best_metric} kept_count={kept_count}")
+
+        leaf = leaf_hash
+        if not leaf:
+            leaves = self.leaves()
+            if leaves:
+                # Prefer annotated best metric leaf
+                leaf = leaves[0]["hash"]
+        if leaf:
+            node = self.fetch(leaf)
+            essentials.append(
+                f"LEAF: {leaf[:12]} metric={None if not node else node.get('metric_value')} "
+                f"agent={None if not node else node.get('agent_id')}"
+            )
+
+        used = sum(len(s) for s in essentials)
+        sections.extend(essentials)
+
+        if leaf:
+            lineage = self.lineage(leaf)[:lineage_k]
+            for n in lineage:
+                line = (
+                    f"LINEAGE {n['hash'][:12]} agent={n.get('agent_id')} "
+                    f"metric={n.get('metric_value')} status={n.get('status')} "
+                    f"h={(n.get('hypothesis') or '')[:80]}"
+                )
+                if used + len(line) > char_budget:
+                    truncated = True
+                    break
+                sections.append(line)
+                used += len(line)
+
+        posts = list(reversed(self.board_list()))[:board_m]
+        # Prefer posts linked to lineage
+        lineage_hashes = set()
+        if leaf:
+            lineage_hashes = {n["hash"] for n in self.lineage(leaf)[:lineage_k]}
+        posts.sort(
+            key=lambda p: (0 if p.get("commit_hash") in lineage_hashes else 1, p.get("created_at") or "")
+        )
+        for p in posts[:board_m]:
+            line = f"BOARD [{p.get('agent_id')}] {p.get('body', '')[:200]}"
+            if used + len(line) > char_budget:
+                truncated = True
+                break
+            sections.append(line)
+            used += len(line)
+
+        text = "\n".join(sections)
+        if len(text) > char_budget:
+            text = text[:char_budget]
+            truncated = True
+
+        return {
+            "text": text,
+            "leaf_hash": leaf,
+            "token_budget": token_budget,
+            "approx_tokens_used": len(text) // 4,
+            "truncated": truncated,
+            "token_accounting": "approx_chars_div_4",
+            "sections": len(sections),
+        }
+
     def checkout(self, commit_hash: str, dest: Path) -> Path:
         full = self._resolve_hash(commit_hash)
         if not full:
@@ -192,11 +319,9 @@ class DagService:
 
     def _resolve_hash(self, commit_hash: str) -> str | None:
         node = self.fetch(commit_hash)
-        return node["hash"] if node else None
-
-    def _parents_of(self, workspace: Path, commit_hash: str) -> list[str]:
-        r = subprocess_parents(workspace, commit_hash)
-        return r
+        if node:
+            return node["hash"]
+        return self.bare.resolve_hash(commit_hash)
 
     @staticmethod
     def _metric_delta(a: dict[str, Any] | None, b: dict[str, Any] | None) -> float | None:
@@ -206,17 +331,3 @@ class DagService:
         if va is None or vb is None:
             return None
         return float(vb) - float(va)
-
-
-def subprocess_parents(workspace: Path, commit_hash: str) -> list[str]:
-    import subprocess
-
-    r = subprocess.run(
-        ["git", "rev-parse", f"{commit_hash}^@"],
-        cwd=workspace,
-        capture_output=True,
-        text=True,
-    )
-    if r.returncode != 0:
-        return []
-    return [line.strip() for line in r.stdout.splitlines() if line.strip()]

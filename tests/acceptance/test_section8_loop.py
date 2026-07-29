@@ -1,48 +1,77 @@
-"""§8 Acceptance — Loop."""
+"""§8 Acceptance — Loop (hostile metrics, no override keep)."""
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from agentic_platform.core.platform import Platform
 from tests.conftest import make_control_payload
 
 
-def test_reproducible_best_after_many_trials(platform: Platform, workspace: Path) -> None:
+def _set_hparams(workspace: Path, lr: float, steps: int, hidden: int = 8) -> str:
+    text = (workspace / "train.py").read_text(encoding="utf-8")
+    text = re.sub(r"^LR\s*=\s*[^\n]+", f"LR = {lr}", text, flags=re.M)
+    text = re.sub(r"^STEPS\s*=\s*[^\n]+", f"STEPS = {steps}", text, flags=re.M)
+    text = re.sub(r"^HIDDEN\s*=\s*[^\n]+", f"HIDDEN = {hidden}", text, flags=re.M)
+    return text
+
+
+def test_reproducible_best_after_real_trials(platform: Platform, workspace: Path) -> None:
     ctl = platform.control.create(make_control_payload())
     loop = platform.loops.start(ctl["id"], workspace)
+    assert (workspace / "program.md").exists()
+    assert loop["best_metric"] is not None
 
-    # Autonomous-style batch: 50 trials with deterministic metric_override for speed
-    best = 1.0
-    for i in range(50):
-        # every 5th trial improves
-        candidate = best - 0.01 if i % 5 == 0 else best + 0.05
+    # Grid of real train.py runs (no metric_override)
+    configs = [
+        (0.01, 20, 4),
+        (0.05, 40, 8),
+        (0.1, 60, 8),
+        (0.15, 80, 12),
+        (0.08, 120, 8),
+        (0.2, 40, 16),
+        (0.03, 80, 12),
+        (0.12, 100, 8),
+    ]
+    kept = 0
+    for i, (lr, steps, hidden) in enumerate(configs):
+        content = _set_hparams(workspace, lr, steps, hidden)
         t = platform.loops.propose_trial(
             loop["id"],
             agent_id=f"agent-{i % 3}",
-            hypothesis=f"trial {i}",
-            file_edits={"train.py": f"metric = {candidate}\nprint(f'val_loss={{metric}}')\n"},
-            metric_override=candidate,
+            hypothesis=f"lr={lr} steps={steps} h={hidden}",
+            file_edits={"train.py": content},
         )
+        assert t["status"] in ("kept", "reverted", "crash", "rejected")
+        assert "metric_override" not in (t.get("error") or "") or t["status"] == "rejected"
         if t["status"] == "kept":
-            best = candidate
+            kept += 1
+            assert t["metric_value"] is not None
 
     info = platform.loops.best(loop["id"])
     assert info["best_commit"]
-    assert info["reproducible_from_commit"] is True
+    # Reproducibility is computed, not hardcoded True
+    assert isinstance(info["reproducible_from_commit"], bool)
+    if info["best_metric"] is not None:
+        repro = platform.loops.reproduce_metric(loop["id"], info["best_commit"])
+        assert repro["matches_recorded_best"] is True
+        assert info["reproducible_from_commit"] is True
 
-    # Re-run from commit hash alone (uses real train.py content)
-    # Rewrite train.py to match last kept metric for real execution path
-    platform.loops.propose_trial(
+
+def test_metric_override_cannot_keep(platform: Platform, workspace: Path) -> None:
+    ctl = platform.control.create(make_control_payload())
+    loop = platform.loops.start(ctl["id"], workspace)
+    t = platform.loops.propose_trial(
         loop["id"],
-        agent_id="repro",
-        hypothesis="sync for repro",
-        file_edits={"train.py": f"metric = {info['best_metric']}\nprint(f'val_loss={{metric}}')\n"},
-        metric_override=info["best_metric"],
+        agent_id="cheater",
+        hypothesis="fake metric",
+        metric_override=0.0001,
     )
-    info = platform.loops.best(loop["id"])
-    repro = platform.loops.reproduce_metric(loop["id"], info["best_commit"])
-    assert repro["matches_recorded_best"] is True
+    assert t["status"] == "rejected"
+    assert "INV-02" in (t.get("error") or "")
+    refreshed = platform.loops.get(loop["id"])
+    assert refreshed["best_commit"] == loop["best_commit"]
 
 
 def test_crash_mid_training_reverts_and_logs(platform: Platform, workspace: Path) -> None:
@@ -54,7 +83,7 @@ def test_crash_mid_training_reverts_and_logs(platform: Platform, workspace: Path
         loop["id"],
         agent_id="crashy",
         hypothesis="will crash",
-        file_edits={"train.py": "metric = 0.1\nprint(f'val_loss={metric}')\n"},
+        file_edits={"train.py": _set_hparams(workspace, 0.1, 40)},
         simulate_crash=True,
     )
     assert trial["status"] == "crash"
@@ -64,16 +93,14 @@ def test_crash_mid_training_reverts_and_logs(platform: Platform, workspace: Path
     refreshed = platform.loops.get(loop["id"])
     assert refreshed["best_commit"] == parent
 
-    # Next trial resumes from last kept state
     next_t = platform.loops.propose_trial(
         loop["id"],
         agent_id="recover",
         hypothesis="after crash",
-        file_edits={"train.py": "metric = 0.5\nprint(f'val_loss={metric}')\n"},
-        metric_override=0.5,
+        file_edits={"train.py": _set_hparams(workspace, 0.2, 80, 12)},
     )
     assert next_t["parent_commit"] == parent
-    assert next_t["status"] == "kept"
+    assert next_t["status"] in ("kept", "reverted")
 
 
 def test_protected_path_rejected_before_commit(platform: Platform, workspace: Path) -> None:
@@ -89,3 +116,16 @@ def test_protected_path_rejected_before_commit(platform: Platform, workspace: Pa
     assert trial["status"] == "rejected"
     assert "INV-01" in (trial.get("error") or "")
     assert trial.get("commit_hash") is None
+
+
+def test_mutable_allowlist_rejects_extra_files(platform: Platform, workspace: Path) -> None:
+    ctl = platform.control.create(make_control_payload())
+    loop = platform.loops.start(ctl["id"], workspace)
+    trial = platform.loops.propose_trial(
+        loop["id"],
+        agent_id="rogue2",
+        hypothesis="touch secrets",
+        file_edits={"secrets.txt": "x"},
+    )
+    assert trial["status"] == "rejected"
+    assert "mutable" in (trial.get("error") or "").lower() or "INV-01" in (trial.get("error") or "")
