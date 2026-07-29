@@ -98,12 +98,51 @@ class SimpleLoopAgent:
                 )
                 self._revert_streak = 0
 
-            # Graph writes off by default (C7)
-            if self.enable_graph_writes:
-                pass  # explicit no-op unless future expansion
+            # Graph writes off by default (C7); optional claim when enabled + kept
+            if self.enable_graph_writes and trial["status"] == "kept" and trial.get("commit_hash"):
+                try:
+                    run_like = f"agent-{self.agent_id}"
+                    self.platform.graph.apply_update(
+                        {
+                            "run_id": run_like,
+                            "agent_id": self.agent_id,
+                            "nodes": [
+                                {
+                                    "id": f"src_{trial['id']}",
+                                    "type": "Source",
+                                    "label": "trial ledger",
+                                    "properties": {"uri": trial.get("ledger_entry_uri")},
+                                },
+                                {
+                                    "id": f"claim_{trial['id']}",
+                                    "type": "Claim",
+                                    "label": hypothesis[:80],
+                                    "provenance": {
+                                        "source_ids": [f"src_{trial['id']}"],
+                                        "run_id": run_like,
+                                        "is_inference": False,
+                                    },
+                                },
+                            ],
+                            "edges": [
+                                {
+                                    "id": f"e_{trial['id']}",
+                                    "type": "SUPPORTS",
+                                    "source": f"src_{trial['id']}",
+                                    "target": f"claim_{trial['id']}",
+                                }
+                            ],
+                        }
+                    )
+                except Exception:
+                    # Never fail the loop because KG write failed
+                    pass
 
             loop = self.platform.loops.get(self.loop_id) or loop
-            _ = program  # read for Software 3.0 discipline; heuristic does not need NLP
+            # program.md read is intentional Software 3.0 discipline
+            if not program and (workspace / "program.md").exists():
+                program = (workspace / "program.md").read_text(encoding="utf-8")[:4000]
+            _ = (program, pack)
 
         end = self.platform.loops.get(self.loop_id) or loop
         return {

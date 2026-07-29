@@ -9,6 +9,7 @@ from agentic_platform.eval.service import EvalService
 from agentic_platform.graph.service import GraphService
 from agentic_platform.loops.service import LoopService
 from agentic_platform.runs.service import RunService
+from agentic_platform.security.auth import AuthService
 from agentic_platform.storage.artifacts import ArtifactStore
 from agentic_platform.storage.db import Database
 from agentic_platform.storage.git_repo import BareGitHub
@@ -23,6 +24,8 @@ class Platform:
         self.db = Database(self.data_dir / "platform.db")
         self.artifacts = ArtifactStore(self.data_dir / "artifacts")
         self.bare = BareGitHub(self.data_dir / "hub.git")
+        self.auth = AuthService(self.db)
+        self.auth.ensure_dev_key()
 
         self.runs = RunService(self.db, self.artifacts)
         self.control = ControlService(self.db)
@@ -40,14 +43,6 @@ class Platform:
         )
         self.dag = DagService(self.db, self.bare, audit_hook=self._audit)
 
-        # Seed a default agent key for local/dev
-        existing = self.db.fetchone("SELECT key FROM agent_keys WHERE agent_id = ?", ("architect",))
-        if not existing:
-            self.db.execute(
-                "INSERT INTO agent_keys (key, agent_id) VALUES (?, ?)",
-                ("architect-dev-key", "architect"),
-            )
-
     def _audit(self, run_id: str | None, kind: str, payload: dict[str, Any]) -> None:
         self.runs.audit(run_id, kind, payload)
 
@@ -58,7 +53,29 @@ class Platform:
         self.db.close()
 
     def resolve_agent(self, api_key: str | None) -> str:
-        if not api_key:
-            return "anonymous"
-        row = self.db.fetchone("SELECT agent_id FROM agent_keys WHERE key = ?", (api_key,))
-        return row["agent_id"] if row else "unknown"
+        return self.auth.resolve(api_key)
+
+    def health(self) -> dict[str, Any]:
+        """Readiness: DB reachable, bare repo present, contracts loadable."""
+        checks: dict[str, Any] = {"status": "ok", "contract": "v0.1.0-frozen", "phase": "5"}
+        try:
+            self.db.fetchone("SELECT 1")
+            checks["db"] = "ok"
+        except Exception as e:
+            checks["db"] = f"fail:{e}"
+            checks["status"] = "degraded"
+        checks["hub"] = "ok" if self.bare.path.exists() else "missing"
+        if checks["hub"] != "ok":
+            checks["status"] = "degraded"
+        try:
+            from agentic_platform.core.validation import validate_schema
+
+            errs = validate_schema(
+                "BudgetDeclaration",
+                {"id": "healthcheck"},
+            )
+            checks["schemas"] = "ok" if not errs else f"fail:{errs}"
+        except Exception as e:
+            checks["schemas"] = f"fail:{e}"
+            checks["status"] = "degraded"
+        return checks

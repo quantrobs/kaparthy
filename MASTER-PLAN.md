@@ -189,8 +189,8 @@ Every important output must be reconstructible to:
 | 3     | Evaluation Plane & Budgets    | 1–2 weeks  | Traceability + budget enforcement green            | **Complete**|
 | 4     | Knowledge-Graph Overlay       | 3–4 weeks  | Graph acceptance tests green                       | **Complete**|
 | 4.5   | Honesty & Athlete (Kaparthy)  | 1 wave     | Hostile metrics, Git-truth DAG, agent, context pack| **Complete**|
-| 5     | Integration & Hardening       | 2–3 weeks  | Full E2E + security + recovery under load          | Authorized  |
-| 6     | Production Pilot              | Ongoing    | Real workload metrics + runbooks                   | Pending     |
+| 5     | Integration & Hardening       | 2–3 weeks  | Full E2E + security + recovery under load          | **Complete**|
+| 6     | Production Pilot              | Ongoing    | Real workload metrics + runbooks                   | Authorized  |
 
 **Rules**
 - No phase may start until the previous phase’s exit criteria are met.
@@ -215,21 +215,24 @@ Every important output must be reconstructible to:
 | 2026-07-28 | Additive context pack API; OpenAPI 0.1.1                                 | IT Architect       |
 | 2026-07-28 | Heuristic simple agent required before Phase 5; KG writes default off    | IT Architect       |
 | 2026-07-28 | Phase 4.5 complete; Phase 5 authorized (not auto-started)                | IT Architect       |
+| 2026-07-28 | Phase 5: sandbox, auth keys, WAL locks, recover API, CI, runbook (ADR-005)| IT Architect       |
+| 2026-07-28 | Metric parse uses last regex match (anti fake-print cheat)               | IT Architect       |
+| 2026-07-28 | Phase 5 complete; Phase 6 production pilot authorized                    | IT Architect       |
 
 ---
 
 ## 11. Current Status & Immediate Next Actions
 
-**Status:** Phase **4.5 (Honesty & Athlete)** complete per ADR-004. Hostile evaluation, Git-truth DAG, `program.md` control surface, context pack, and simple agent are live. Phase 5 is **authorized** to start.
+**Status:** Phase **5 (Integration & Hardening)** complete per ADR-005. Sandbox, secret scan, auth, recovery, concurrent SQLite, CI, and runbook are live. Phase 6 (production pilot) is **authorized**.
 
 **Immediate Actions**
 
-1. **Technical Lead** — Keep CI green; no keep-path regressions.  
-2. **Architect** — Phase 5 threat model, recovery under load, deeper ghost sandbox (P3).  
-3. **Security** — Replace dev API keys; cgroups/network isolation for `run_command`.
+1. **Ops** — Run a real pilot workload with `AGENTIC_REQUIRE_AUTH=1` and rotated admin token.  
+2. **Architect** — Pilot metrics: keep rate, crash rate, budget exhaustion rate, recovery success.  
+3. **Security** — Optional P3: cgroups / network namespace (out of process scope until pilot demands it).
 
 **Single most important action right now**  
-Begin Phase 5 hardening **without** relaxing hostile metrics or Git-as-truth.
+Execute Phase 6 pilot on a real research task using the hostile loop + simple agent; do not relax sandbox or keep-path rules.
 
 ---
 

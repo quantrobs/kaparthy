@@ -6,6 +6,7 @@ from agentic_platform.core.ids import new_id
 from agentic_platform.core.timeutil import utc_now_iso
 from agentic_platform.core.validation import assert_valid
 from agentic_platform.models.schemas import ControlDocument
+from agentic_platform.security.sandbox import SandboxError, validate_run_command
 from agentic_platform.storage.db import Database
 
 
@@ -20,6 +21,10 @@ class ControlService:
         data.setdefault("created_at", utc_now_iso())
         if not data.get("program_md"):
             data["program_md"] = self.render_program(data)
+        try:
+            validate_run_command(str(data.get("run_command") or ""), strict=True)
+        except SandboxError as e:
+            raise ValueError(f"invalid run_command: {e}") from e
         doc = ControlDocument.model_validate(data)
         as_dict = doc.model_dump(mode="json", exclude_none=True)
         assert_valid("ControlDocument", as_dict)

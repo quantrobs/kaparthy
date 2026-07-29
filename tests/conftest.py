@@ -15,6 +15,9 @@ def platform(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Platform:
     monkeypatch.setenv("AGENTIC_ROOT", str(root))
     # Never allow orphan DAG metadata in tests unless a test opts in
     monkeypatch.delenv("AGENTIC_DAG_ALLOW_ORPHAN_META", raising=False)
+    monkeypatch.setenv("AGENTIC_REQUIRE_AUTH", "0")
+    # Allow tests to construct Platform before flipping auth flags per-test
+    monkeypatch.delenv("AGENTIC_ALLOW_ARBITRARY_RUN_CMD", raising=False)
     p = Platform(data)
     yield p
     p.close()

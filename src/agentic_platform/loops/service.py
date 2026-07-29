@@ -12,6 +12,7 @@ from agentic_platform.core.timeutil import utc_now_iso
 from agentic_platform.core.validation import assert_valid
 from agentic_platform.invariants.checks import InvariantError, InvariantGuard
 from agentic_platform.models.schemas import Trial
+from agentic_platform.security.sandbox import SandboxError, run_sandboxed, scan_diff_contents
 from agentic_platform.storage.artifacts import ArtifactStore
 from agentic_platform.storage.db import Database
 from agentic_platform.storage.git_repo import GitWorkspace
@@ -270,6 +271,8 @@ class LoopService:
                 if p.is_file():
                     total_bytes += p.stat().st_size
             InvariantGuard.reject_oversized_diff(changed, total_bytes)
+            # Phase 5: secret scan before commit
+            scan_diff_contents(workspace, changed)
 
             if simulate_crash:
                 raise RuntimeError("simulated crash mid-training")
@@ -302,7 +305,7 @@ class LoopService:
                 git.reset_hard(parent)
                 InvariantGuard.require_runnable(workspace)
 
-        except InvariantError as e:
+        except (InvariantError, SandboxError) as e:
             trial["status"] = "rejected"
             trial["error"] = str(e)
             try:
@@ -354,22 +357,62 @@ class LoopService:
     def _run_and_parse_metric(self, workspace: Path, ctl: dict[str, Any]) -> float:
         cmd = ctl["run_command"]
         timeout = float(ctl.get("time_budget_seconds") or 60)
-        result = subprocess.run(
-            cmd,
-            shell=True,
-            cwd=workspace,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
+        result = run_sandboxed(cmd, workspace, timeout=timeout, strict_cmd=True)
         output = (result.stdout or "") + "\n" + (result.stderr or "")
         pattern = ctl["metric"]["parse_regex"]
-        m = re.search(pattern, output)
-        if not m:
+        # Use last match so agents cannot prepend a fake val_loss= print (Phase 5)
+        matches = list(re.finditer(pattern, output))
+        if not matches:
             raise RuntimeError(
                 f"metric not found (rc={result.returncode}) regex={pattern!r}: {output[:500]}"
             )
-        return float(m.group(1))
+        return float(matches[-1].group(1))
+
+    def recover(self, loop_id: str) -> dict[str, Any]:
+        """Phase 5 recovery: hard-reset workspace to last kept best; re-mark loop running."""
+        loop = self.get(loop_id)
+        if not loop:
+            raise ValueError(f"unknown loop: {loop_id}")
+        workspace = Path(loop["workspace_path"])
+        git = GitWorkspace(workspace)
+        best = loop.get("best_commit")
+        if not best:
+            raise ValueError("loop has no best_commit to recover to")
+        git.reset_hard(best)
+        InvariantGuard.require_runnable(workspace)
+        loop["status"] = "running"
+        # drop transient dirty state
+        self.db.execute(
+            "UPDATE loops SET status = ?, payload = ? WHERE id = ?",
+            ("running", self.db.dumps(loop), loop_id),
+        )
+        self.audit_hook(None, "loop.recovered", {"loop_id": loop_id, "best_commit": best})
+        # verify metric still parses
+        ctl = self.control.get(loop["control_document_id"])
+        metric = None
+        if ctl:
+            try:
+                metric = self._run_and_parse_metric(workspace, ctl)
+            except Exception as e:
+                return {
+                    "loop_id": loop_id,
+                    "recovered": True,
+                    "best_commit": best,
+                    "metric_ok": False,
+                    "error": str(e),
+                }
+        return {
+            "loop_id": loop_id,
+            "recovered": True,
+            "best_commit": best,
+            "metric_ok": True,
+            "metric_value": metric,
+            "matches_best": (
+                loop.get("best_metric") is None
+                or metric is None
+                or abs(float(metric) - float(loop["best_metric"])) < 1e-5
+            ),
+        }
 
     def reproduce_metric(self, loop_id: str, commit_hash: str | None = None) -> dict[str, Any]:
         loop = self.get(loop_id)

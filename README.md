@@ -2,9 +2,9 @@
 
 Production-oriented implementation of the **Agentic Research Platform** Master Plan: measured loops, commit DAGs (AgentHub), Software 3.0 control/evaluation/budgets, and a knowledge-graph overlay.
 
-**Contract version:** `v0.1.0-frozen` schemas · OpenAPI `0.1.1` (additive context pack)  
+**Contract version:** `v0.1.0-frozen` schemas · OpenAPI `0.1.1`  
 **Authority:** IT Architect  
-**Phase:** 4.5 complete (Kaparthy correction wave)
+**Phase:** 5 complete (integration & hardening) · Phase 6 pilot authorized
 
 ## Kaparthy correction (must-know)
 
@@ -59,12 +59,25 @@ Dev agent key: `X-Agent-Key: architect-dev-key`.
 
 `examples/demo_workspace/` — tiny CPU trainer with mutable `LR`/`STEPS`/`HIDDEN`/`L2`, protected `prepare.py`, living `program.md`.
 
+## Phase 5 hardening
+
+| Control | Detail |
+|---------|--------|
+| Sandbox | Scrubbed child env; `python script.py` allowlist; secret scan on diffs |
+| Auth | `X-Agent-Key`; `AGENTIC_REQUIRE_AUTH=1` for production; `POST /auth/keys` |
+| Recovery | `POST /loops/{id}/recover` |
+| Health | `GET /health`, `GET /ready` |
+| CI | `.github/workflows/ci.yml` |
+
+See `docs/runbook.md`.
+
 ## ADRs
 
 - `docs/adr/ADR-001-storage-and-runtime.md`
 - `docs/adr/ADR-002-phase-scope-sections-1-8.md`
 - `docs/adr/ADR-003-git-authoritative-dag.md`
 - `docs/adr/ADR-004-kaparthy-correction-exit.md`
+- `docs/adr/ADR-005-phase5-hardening.md`
 
 ## Invariants
 

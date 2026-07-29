@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -117,27 +118,36 @@ CREATE TABLE IF NOT EXISTS agent_keys (
 
 
 class Database:
+    """SQLite with a process-local write lock for multi-thread API safety."""
+
     def __init__(self, path: Path) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.RLock()
         self._conn = sqlite3.connect(str(self.path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA busy_timeout=5000")
         self._conn.executescript(SCHEMA_SQL)
         self._conn.commit()
 
     def close(self) -> None:
-        self._conn.close()
+        with self._lock:
+            self._conn.close()
 
     def execute(self, sql: str, params: Iterable[Any] = ()) -> sqlite3.Cursor:
-        cur = self._conn.execute(sql, tuple(params))
-        self._conn.commit()
-        return cur
+        with self._lock:
+            cur = self._conn.execute(sql, tuple(params))
+            self._conn.commit()
+            return cur
 
     def fetchone(self, sql: str, params: Iterable[Any] = ()) -> sqlite3.Row | None:
-        return self._conn.execute(sql, tuple(params)).fetchone()
+        with self._lock:
+            return self._conn.execute(sql, tuple(params)).fetchone()
 
     def fetchall(self, sql: str, params: Iterable[Any] = ()) -> list[sqlite3.Row]:
-        return list(self._conn.execute(sql, tuple(params)).fetchall())
+        with self._lock:
+            return list(self._conn.execute(sql, tuple(params)).fetchall())
 
     @staticmethod
     def dumps(obj: Any) -> str:
