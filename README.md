@@ -1,6 +1,7 @@
 # Agentic Research Platform (kaparthy)
 
-Production-oriented implementation of the **Agentic Research Platform** Master Plan: measured loops, commit DAGs (AgentHub), Software 3.0 control/evaluation/budgets, and a knowledge-graph overlay.
+Production oriented implementation of the **Agentic Research Platform** Master Plan: measured loops, commit DAGs (AgentHub), Software 3.0 control/evaluation/budgets, and a knowledge-graph overlay.
+This repo was influenced by a number of papers that read about or from Kaparthy. 
 
 **Contract version:** `v0.1.0-frozen` schemas · OpenAPI `0.1.1`  
 **Authority:** IT Architect  
