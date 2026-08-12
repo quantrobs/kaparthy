@@ -221,6 +221,7 @@ Every important output must be reconstructible to:
 | 2026-07-28 | Metric parse uses last regex match (anti fake-print cheat)               | IT Architect       |
 | 2026-07-28 | Phase 5 complete; Phase 6 production pilot authorized                    | IT Architect       |
 | 2026-08-12 | Collected bibliography committed at `docs/bibliography.md`               | IT Architect       |
+| 2026-08-12 | ADR-006 Phase 6 top slice (sealed keep, frontier filter, leaf search)    | IT Architect       |
 
 ---
 
@@ -231,11 +232,11 @@ Every important output must be reconstructible to:
 **Immediate Actions**
 
 1. **Ops** — Run a real pilot workload with `AGENTIC_REQUIRE_AUTH=1` and rotated admin token.  
-2. **Architect** — Pilot metrics: keep rate, crash rate, budget exhaustion rate, recovery success.  
+2. **Architect** — Execute ADR-006 Wave A (sealed keep-gate) before any LLM proposer; then B (dedup) and C (leaf search). Pilot metrics: keep rate, crash rate, budget exhaustion rate, recovery success, leaves/kept, duplicate-reject rate.  
 3. **Security** — Optional P3: cgroups / network namespace (out of process scope until pilot demands it).
 
 **Single most important action right now**  
-Execute Phase 6 pilot on a real research task using the hostile loop + simple agent; do not relax sandbox or keep-path rules.
+Implement Wave A (`docs/phase6-technical-plan.md`): a keep is a sealed certificate, not one lucky seed. Do not relax sandbox or keep-path rules.
 
 ---
 
@@ -250,6 +251,8 @@ Execute Phase 6 pilot on a real research task using the hostile loop + simple ag
 - Frozen contracts: `/home/workdir/artifacts/contracts/v0.1.0/`.
 
 Annotated collection, layer mapping, steal / do-not-steal notes, and Phase 6 candidates: [`docs/bibliography.md`](docs/bibliography.md).
+
+Prioritized engineering plan for the candidates that floated: [`docs/phase6-technical-plan.md`](docs/phase6-technical-plan.md) (ADR-006).
 
 ---
 

@@ -79,10 +79,13 @@ See `docs/runbook.md`.
 - `docs/adr/ADR-003-git-authoritative-dag.md`
 - `docs/adr/ADR-004-kaparthy-correction-exit.md`
 - `docs/adr/ADR-005-phase5-hardening.md`
+- `docs/adr/ADR-006-phase6-top-slice.md`
 
 ## Bibliography
 
 Collected foundational sources and Phase 6 candidate papers: [`docs/bibliography.md`](docs/bibliography.md).
+
+Phase 6 technical plan (what floated): [`docs/phase6-technical-plan.md`](docs/phase6-technical-plan.md).
 
 ## Invariants
 
