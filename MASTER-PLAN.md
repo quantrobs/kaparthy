@@ -28,6 +28,8 @@ This plan synthesizes:
 - IT Architect derivations: interface contracts, data models, invariants, acceptance tests, and phased roadmap.
 - Frozen API contracts `v0.1.0-frozen` (OpenAPI + JSON Schemas).
 
+The annotated, layer-mapped collection of these sources plus Phase 6 candidate papers lives in [`docs/bibliography.md`](docs/bibliography.md). That file does not override this plan.
+
 ---
 
 ## 3. Architecture Overview
@@ -218,6 +220,7 @@ Every important output must be reconstructible to:
 | 2026-07-28 | Phase 5: sandbox, auth keys, WAL locks, recover API, CI, runbook (ADR-005)| IT Architect       |
 | 2026-07-28 | Metric parse uses last regex match (anti fake-print cheat)               | IT Architect       |
 | 2026-07-28 | Phase 5 complete; Phase 6 production pilot authorized                    | IT Architect       |
+| 2026-08-12 | Collected bibliography committed at `docs/bibliography.md`               | IT Architect       |
 
 ---
 
@@ -245,6 +248,8 @@ Execute Phase 6 pilot on a real research task using the hostile loop + simple ag
 - Karpathy, A. — “Verifiability”, “Animals vs Ghosts”, 2025 LLM Year in Review (Bear blog).
 - Anthropic — Building Effective Agents (2024), Dynamic Workflows (2026), Knowledge Graph Construction Cookbook.
 - Frozen contracts: `/home/workdir/artifacts/contracts/v0.1.0/`.
+
+Annotated collection, layer mapping, steal / do-not-steal notes, and Phase 6 candidates: [`docs/bibliography.md`](docs/bibliography.md).
 
 ---
 
