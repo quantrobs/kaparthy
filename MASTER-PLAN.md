@@ -221,7 +221,7 @@ Every important output must be reconstructible to:
 | 2026-07-28 | Metric parse uses last regex match (anti fake-print cheat)               | IT Architect       |
 | 2026-07-28 | Phase 5 complete; Phase 6 production pilot authorized                    | IT Architect       |
 | 2026-08-12 | Collected bibliography committed at `docs/bibliography.md`               | IT Architect       |
-| 2026-08-12 | ADR-006 Phase 6 top slice (sealed keep, frontier filter, leaf search)    | IT Architect       |
+| 2026-08-12 | ADR-006 Phase 6 WP1–6 (sealed keep, dedup, leaves, briefing, GraphFlow, gates) | IT Architect       |
 
 ---
 
@@ -232,7 +232,7 @@ Every important output must be reconstructible to:
 **Immediate Actions**
 
 1. **Ops** — Run a real pilot workload with `AGENTIC_REQUIRE_AUTH=1` and rotated admin token.  
-2. **Architect** — Execute ADR-006 Wave A (sealed keep-gate) before any LLM proposer; then B (dedup) and C (leaf search). Pilot metrics: keep rate, crash rate, budget exhaustion rate, recovery success, leaves/kept, duplicate-reject rate.  
+2. **Architect** — Execute ADR-006 in order 6 → 1 → 2 → 3 → 4 → 5. Pilot metrics: keep rate, crash rate, budget exhaustion, recovery, leaves/kept, duplicate-reject, pack clusters, subgraph diversity.  
 3. **Security** — Optional P3: cgroups / network namespace (out of process scope until pilot demands it).
 
 **Single most important action right now**  

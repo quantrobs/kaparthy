@@ -146,7 +146,7 @@ Read before proposing an ADR. Implementation still needs a contract delta.
 
 If only four papers are read: **C6, C7, C1, C12**.
 
-Authorized engineering sequence (what floated after scoring against the live code): [`phase6-technical-plan.md`](phase6-technical-plan.md) and [ADR-006](adr/ADR-006-phase6-top-slice.md). C12 is **not** in that slice — GraphFlow waits until KG writes are on.
+Authorized engineering sequence (WP1–6, scored against the live code): [`phase6-technical-plan.md`](phase6-technical-plan.md) and [ADR-006](adr/ADR-006-phase6-top-slice.md). Build order: **6 → 1 → 2 → 3 → 4 → 5**. C12 (WP5) uses a system lineage projector; agent KG writes stay off.
 
 ---
 
@@ -157,6 +157,7 @@ Authorized engineering sequence (what floated after scoring against the live cod
 | 2026-07-28 | F1–F10 recorded in Master Plan §2 / §12 | IT Architect |
 | 2026-08-12 | C1–C14, W1–W6, D1–D5 collected against Phase-5 architecture and named Phase-6 gaps | IT Architect |
 | 2026-08-12 | Top slice scored and planned: ADR-006 + `docs/phase6-technical-plan.md` (A: C6/C7/C8/C10, B: C4, C: C1/C3 heuristic) | IT Architect |
+| 2026-08-12 | Full WP1–6 technical plan (adds C13 briefing + C12 GraphFlow + C8 as merge valve) | IT Architect |
 
 New entries require: a stable identifier, a primary URL, a layer mapping, and an explicit steal / do-not-steal or warning line. Viral compilations go in §7 or not at all.
 

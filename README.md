@@ -85,7 +85,7 @@ See `docs/runbook.md`.
 
 Collected foundational sources and Phase 6 candidate papers: [`docs/bibliography.md`](docs/bibliography.md).
 
-Phase 6 technical plan (what floated): [`docs/phase6-technical-plan.md`](docs/phase6-technical-plan.md).
+Phase 6 technical plan (work packages 1–6): [`docs/phase6-technical-plan.md`](docs/phase6-technical-plan.md).
 
 ## Invariants
 
