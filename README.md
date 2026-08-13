@@ -1,7 +1,5 @@
 # SealedKeep
 
-**Acknowledgement: This work was inspired by my readings on Kaparthy.  A bibliography is here: docs/bibliography.md
-
 **Only real improvements survive.**
 
 SealedKeep runs an experiment loop for code and research work.
@@ -9,6 +7,8 @@ SealedKeep runs an experiment loop for code and research work.
 An agent (or a simple script) changes something. A fixed command measures the result. If the number got better, the change stays. If it did not, the change is thrown away and the files go back to the last good version.
 
 That is the whole product. Everything else exists to keep that rule honest.
+
+**Acknowledgement: This work was inspired by my readings on Kaparthy.  A bibliography is here: docs/bibliography.md
 
 ## What matters
 
