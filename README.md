@@ -1,10 +1,11 @@
 # Agentic Research Platform (kaparthy)
 
-Production-oriented implementation of the **Agentic Research Platform** Master Plan: measured loops, commit DAGs (AgentHub), Software 3.0 control/evaluation/budgets, and a knowledge-graph overlay.
+Production oriented implementation of the **Agentic Research Platform** Master Plan: measured loops, commit DAGs (AgentHub), Software 3.0 control/evaluation/budgets, and a knowledge-graph overlay.
+This repo was influenced by a number of papers that read about or from Kaparthy.
 
-**Contract version:** `v0.1.0-frozen` schemas · OpenAPI `0.1.1`  
+**Contract version:** `v0.1.2` (additive; `v0.1.0-frozen` still accepted) · OpenAPI `0.1.2`  
 **Authority:** IT Architect  
-**Phase:** 5 complete (integration & hardening) · Phase 6 pilot authorized
+**Phase:** 6 in progress (WP6 gates + sealed keep + frontier + leaves)
 
 ## What this application does
 
@@ -119,6 +120,13 @@ See `docs/runbook.md`.
 - `docs/adr/ADR-003-git-authoritative-dag.md`
 - `docs/adr/ADR-004-kaparthy-correction-exit.md`
 - `docs/adr/ADR-005-phase5-hardening.md`
+- `docs/adr/ADR-006-phase6-top-slice.md`
+
+## Bibliography
+
+Collected foundational sources and Phase 6 candidate papers: [`docs/bibliography.md`](docs/bibliography.md).
+
+Phase 6 technical plan (work packages 1–6): [`docs/phase6-technical-plan.md`](docs/phase6-technical-plan.md).
 
 ## Invariants
 

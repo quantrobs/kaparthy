@@ -114,6 +114,17 @@ CREATE TABLE IF NOT EXISTS agent_keys (
   key TEXT PRIMARY KEY,
   agent_id TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS trial_fingerprints (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  loop_id TEXT NOT NULL,
+  control_document_id TEXT NOT NULL,
+  fingerprint TEXT NOT NULL,
+  trial_id TEXT NOT NULL,
+  created_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_trial_fp
+  ON trial_fingerprints(control_document_id, fingerprint);
 """
 
 

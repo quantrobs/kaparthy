@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+import os
 
 # === mutable hyperparameters (agent may edit) ===
 LR = 0.05
@@ -12,13 +13,20 @@ SEED = 0
 # === end mutable ===
 
 
+def _eval_seed() -> int:
+    raw = os.environ.get("AGENTIC_EVAL_SEED")
+    if raw is None or str(raw).strip() == "":
+        return int(SEED)
+    return int(raw)
+
+
 def main() -> None:
     n = 64
     xs = [(i / n) * 2 - 1 for i in range(n)]
     ys = [math.sin(3 * x) + 0.1 * x for x in xs]
 
     def rnd(i: int) -> float:
-        return math.sin(SEED * 12.9898 + i * 78.233) * 43758.5453 % 1.0
+        return math.sin(_eval_seed() * 12.9898 + i * 78.233) * 43758.5453 % 1.0
 
     w1 = [rnd(i) * 0.5 - 0.25 for i in range(HIDDEN)]
     b1 = [rnd(100 + i) * 0.1 for i in range(HIDDEN)]

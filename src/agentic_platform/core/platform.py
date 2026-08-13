@@ -35,13 +35,14 @@ class Platform:
             budget_check=self._graph_budget,
             audit_hook=self._audit,
         )
+        self.dag = DagService(self.db, self.bare, audit_hook=self._audit)
         self.loops = LoopService(
             self.db,
             self.artifacts,
             self.control,
             audit_hook=self._audit,
+            dag=self.dag,
         )
-        self.dag = DagService(self.db, self.bare, audit_hook=self._audit)
 
     def _audit(self, run_id: str | None, kind: str, payload: dict[str, Any]) -> None:
         self.runs.audit(run_id, kind, payload)
@@ -52,12 +53,22 @@ class Platform:
     def close(self) -> None:
         self.db.close()
 
+    def project_loop(self, loop_id: str) -> dict[str, Any]:
+        from agentic_platform.graph.projector import project_loop
+
+        loop = self.loops.get(loop_id)
+        if not loop:
+            raise ValueError(f"unknown loop: {loop_id}")
+        budget = self.runs.create_budget({"max_graph_writes": 10_000})
+        run = self.runs.create_run(loop["control_document_id"], budget["id"])
+        return project_loop(self.graph, self.loops.list_trials(loop_id), run_id=run["id"])
+
     def resolve_agent(self, api_key: str | None) -> str:
         return self.auth.resolve(api_key)
 
     def health(self) -> dict[str, Any]:
         """Readiness: DB reachable, bare repo present, contracts loadable."""
-        checks: dict[str, Any] = {"status": "ok", "contract": "v0.1.0-frozen", "phase": "5"}
+        checks: dict[str, Any] = {"status": "ok", "contract": "v0.1.2", "phase": "6"}
         try:
             self.db.fetchone("SELECT 1")
             checks["db"] = "ok"

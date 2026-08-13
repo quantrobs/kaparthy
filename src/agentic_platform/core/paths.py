@@ -13,7 +13,11 @@ def repo_root() -> Path:
 
 
 def contracts_dir() -> Path:
-    return repo_root() / "contracts" / "v0.1.0"
+    root = repo_root()
+    v12 = root / "contracts" / "v0.1.2"
+    if v12.exists():
+        return v12
+    return root / "contracts" / "v0.1.0"
 
 
 def schemas_dir() -> Path:

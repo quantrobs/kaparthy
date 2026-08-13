@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kaparthy.dev/contracts/v0.1.2/graph-update.schema.json",
+  "title": "GraphUpdate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["nodes", "edges", "run_id", "agent_id"],
+  "properties": {
+    "run_id": { "type": "string" },
+    "agent_id": { "type": "string" },
+    "nodes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/node" }
+    },
+    "edges": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/edge" }
+    },
+    "resolution_ops": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/resolution_op" }
+    }
+  },
+  "$defs": {
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": [
+            "Entity",
+            "Claim",
+            "Source",
+            "Artifact",
+            "AgentRun",
+            "Evaluation",
+            "Commit",
+            "Metric",
+            "Task"
+          ]
+        },
+        "label": { "type": "string" },
+        "properties": { "type": "object" },
+        "provenance": {
+          "type": "object",
+          "properties": {
+            "source_ids": { "type": "array", "items": { "type": "string" } },
+            "run_id": { "type": "string" },
+            "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+            "is_inference": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type", "source", "target"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": [
+            "PARENT_OF",
+            "PRODUCED",
+            "SUPPORTS",
+            "CONTRADICTS",
+            "ABOUT",
+            "EVALUATED_BY",
+            "SUPERSEDES",
+            "RESOLVED_TO",
+            "MENTIONS",
+            "DERIVED_FROM",
+            "HAS_METRIC"
+          ]
+        },
+        "source": { "type": "string" },
+        "target": { "type": "string" },
+        "properties": { "type": "object" },
+        "provenance": { "type": "object" }
+      }
+    },
+    "resolution_op": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["op", "from_id", "to_id"],
+      "properties": {
+        "op": { "type": "string", "enum": ["merge", "unmerge"] },
+        "from_id": { "type": "string" },
+        "to_id": { "type": "string" },
+        "evidence": { "type": "string" },
+        "reversible": { "type": "boolean", "const": true }
+      }
+    }
+  }
+}

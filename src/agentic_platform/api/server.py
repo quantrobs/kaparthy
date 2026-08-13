@@ -34,8 +34,8 @@ def _agent(x_agent_key: str | None) -> str:
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Agentic Research Platform",
-        version="0.1.1",
-        description="Control, Loops, DAG, Graph, Eval, Runs — Phase 5 hardened",
+        version="0.1.2",
+        description="Control, Loops, DAG, Graph, Eval, Runs — Phase 6 keep-gate + frontier",
     )
 
     @app.exception_handler(InvariantError)
@@ -139,6 +139,7 @@ def create_app() -> FastAPI:
             file_edits=body.get("file_edits"),
             simulate_crash=bool(body.get("simulate_crash", False)),
             metric_override=body.get("metric_override"),
+            parent_commit=body.get("parent_commit"),
         )
 
     @app.get("/loops/{loop_id}/trials")
@@ -277,7 +278,19 @@ def create_app() -> FastAPI:
             hops=int(body.get("hops", 2)),
             token_budget=int(body.get("token_budget", 2000)),
             prefer_verified=bool(body.get("prefer_verified", True)),
+            query=body.get("query"),
         )
+
+    @app.post("/graph/project")
+    def graph_project(
+        body: dict[str, Any],
+        x_agent_key: str | None = Header(default=None),
+        x_admin_token: str | None = Header(default=None),
+    ) -> dict[str, Any]:
+        token = x_admin_token or x_agent_key
+        if not get_platform().auth.admin_token_ok(token):
+            raise HTTPException(403, "admin token required")
+        return get_platform().project_loop(body["loop_id"])
 
     @app.post("/graph/resolve")
     def graph_resolve(

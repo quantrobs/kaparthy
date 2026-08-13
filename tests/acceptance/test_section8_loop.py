@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import pytest
+
 from agentic_platform.core.platform import Platform
 from tests.conftest import make_control_payload
 
@@ -59,6 +61,7 @@ def test_reproducible_best_after_real_trials(platform: Platform, workspace: Path
         assert info["reproducible_from_commit"] is True
 
 
+@pytest.mark.release_gate
 def test_metric_override_cannot_keep(platform: Platform, workspace: Path) -> None:
     ctl = platform.control.create(make_control_payload())
     loop = platform.loops.start(ctl["id"], workspace)
@@ -74,6 +77,7 @@ def test_metric_override_cannot_keep(platform: Platform, workspace: Path) -> Non
     assert refreshed["best_commit"] == loop["best_commit"]
 
 
+@pytest.mark.release_gate
 def test_crash_mid_training_reverts_and_logs(platform: Platform, workspace: Path) -> None:
     ctl = platform.control.create(make_control_payload())
     loop = platform.loops.start(ctl["id"], workspace)
@@ -103,6 +107,7 @@ def test_crash_mid_training_reverts_and_logs(platform: Platform, workspace: Path
     assert next_t["status"] in ("kept", "reverted")
 
 
+@pytest.mark.release_gate
 def test_protected_path_rejected_before_commit(platform: Platform, workspace: Path) -> None:
     ctl = platform.control.create(make_control_payload())
     loop = platform.loops.start(ctl["id"], workspace)
@@ -118,6 +123,7 @@ def test_protected_path_rejected_before_commit(platform: Platform, workspace: Pa
     assert trial.get("commit_hash") is None
 
 
+@pytest.mark.release_gate
 def test_mutable_allowlist_rejects_extra_files(platform: Platform, workspace: Path) -> None:
     ctl = platform.control.create(make_control_payload())
     loop = platform.loops.start(ctl["id"], workspace)

@@ -11,6 +11,8 @@ from agentic_platform.core.ids import new_id
 from agentic_platform.core.timeutil import utc_now_iso
 from agentic_platform.core.validation import assert_valid
 from agentic_platform.invariants.checks import InvariantError, InvariantGuard
+from agentic_platform.loops.fingerprint import fingerprint_workspace
+from agentic_platform.loops.pace import can_still_reach, should_keep, wealth_update
 from agentic_platform.models.schemas import Trial
 from agentic_platform.security.sandbox import SandboxError, run_sandboxed, scan_diff_contents
 from agentic_platform.storage.artifacts import ArtifactStore
@@ -22,6 +24,7 @@ _DEMO_TRAIN = '''\
 from __future__ import annotations
 
 import math
+import os
 
 # === mutable hyperparameters (agent may edit) ===
 LR = 0.05
@@ -32,13 +35,20 @@ SEED = 0
 # === end mutable ===
 
 
+def _eval_seed() -> int:
+    raw = os.environ.get("AGENTIC_EVAL_SEED")
+    if raw is None or str(raw).strip() == "":
+        return int(SEED)
+    return int(raw)
+
+
 def main() -> None:
     n = 64
     xs = [(i / n) * 2 - 1 for i in range(n)]
     ys = [math.sin(3 * x) + 0.1 * x for x in xs]
 
     def rnd(i: int) -> float:
-        return math.sin(SEED * 12.9898 + i * 78.233) * 43758.5453 % 1.0
+        return math.sin(_eval_seed() * 12.9898 + i * 78.233) * 43758.5453 % 1.0
 
     w1 = [rnd(i) * 0.5 - 0.25 for i in range(HIDDEN)]
     b1 = [rnd(100 + i) * 0.1 for i in range(HIDDEN)]
@@ -93,11 +103,13 @@ class LoopService:
         artifacts: ArtifactStore,
         control: ControlService,
         audit_hook: Callable[[str | None, str, dict[str, Any]], None] | None = None,
+        dag: Any | None = None,
     ) -> None:
         self.db = db
         self.artifacts = artifacts
         self.control = control
         self.audit_hook = audit_hook or (lambda *a, **k: None)
+        self.dag = dag
 
     def start(
         self,
@@ -209,6 +221,7 @@ class LoopService:
         file_edits: dict[str, str] | None = None,
         simulate_crash: bool = False,
         metric_override: float | None = None,
+        parent_commit: str | None = None,
     ) -> dict[str, Any]:
         loop = self.get(loop_id)
         if not loop:
@@ -219,7 +232,7 @@ class LoopService:
 
         workspace = Path(loop["workspace_path"])
         git = GitWorkspace(workspace)
-        parent = loop["best_commit"]
+        parent = parent_commit or loop["best_commit"]
         git.reset_hard(parent)
         InvariantGuard.require_runnable(workspace)
 
@@ -264,6 +277,7 @@ class LoopService:
 
             InvariantGuard.reject_protected_edits(changed, ctl.get("protected_paths") or [])
             InvariantGuard.reject_outside_mutable(changed, ctl.get("mutable_paths"))
+            InvariantGuard.reject_holdout_authorship(changed)
 
             total_bytes = 0
             for rel in changed:
@@ -271,8 +285,18 @@ class LoopService:
                 if p.is_file():
                     total_bytes += p.stat().st_size
             InvariantGuard.reject_oversized_diff(changed, total_bytes)
-            # Phase 5: secret scan before commit
             scan_diff_contents(workspace, changed)
+
+            fp = fingerprint_workspace(workspace)
+            if fp:
+                trial["fingerprint"] = fp
+                hit = self.db.fetchone(
+                    "SELECT trial_id FROM trial_fingerprints "
+                    "WHERE control_document_id = ? AND fingerprint = ?",
+                    (loop["control_document_id"], fp),
+                )
+                if hit:
+                    raise InvariantError(2, f"duplicate_of:{hit['trial_id']}")
 
             if simulate_crash:
                 raise RuntimeError("simulated crash mid-training")
@@ -282,19 +306,34 @@ class LoopService:
             trial["diff_summary"] = git.diff_stat(parent, commit_hash)[:2000]
 
             t0 = time.time()
-            metric_value = self._run_and_parse_metric(workspace, ctl)
+            kg = ctl.get("keep_gate") or {}
+            mode = kg.get("mode") or "single_shot"
+            if mode == "paired_pace":
+                incumbent = loop.get("best_commit") or parent
+                better, cert, metric_value = self._evaluate_paired(
+                    workspace, git, ctl, incumbent, commit_hash
+                )
+                InvariantGuard.require_sealed_keep(cert, mode)
+                trial["keep_certificate"] = cert
+                trial["metric_name"] = ctl["metric"]["name"]
+                trial["metric_value"] = metric_value
+                try:
+                    self._record_evaluation(trial, cert, better)
+                except Exception:
+                    pass
+            else:
+                metric_value = self._run_and_parse_metric(workspace, ctl)
+                trial["metric_name"] = ctl["metric"]["name"]
+                trial["metric_value"] = metric_value
+                better = InvariantGuard.require_metric_improvement(
+                    direction=ctl["metric"]["direction"],
+                    comparison=ctl["comparison"]["function"],
+                    baseline=loop.get("best_metric"),
+                    candidate=metric_value,
+                    epsilon=ctl["comparison"].get("epsilon"),
+                )
             wall = time.time() - t0
-            trial["metric_name"] = ctl["metric"]["name"]
-            trial["metric_value"] = metric_value
             trial["wall_time_seconds"] = wall
-
-            better = InvariantGuard.require_metric_improvement(
-                direction=ctl["metric"]["direction"],
-                comparison=ctl["comparison"]["function"],
-                baseline=loop.get("best_metric"),
-                candidate=metric_value,
-                epsilon=ctl["comparison"].get("epsilon"),
-            )
 
             if better:
                 trial["status"] = "kept"
@@ -302,8 +341,15 @@ class LoopService:
                 loop["best_metric"] = metric_value
             else:
                 trial["status"] = "reverted"
+
+            self._push_evidence(workspace, trial, agent_id, hypothesis)
+
+            if trial["status"] == "reverted":
                 git.reset_hard(parent)
                 InvariantGuard.require_runnable(workspace)
+
+            if fp:
+                self._store_fingerprint(loop_id, loop["control_document_id"], fp, trial_id)
 
         except (InvariantError, SandboxError) as e:
             trial["status"] = "rejected"
@@ -354,10 +400,15 @@ class LoopService:
         self.audit_hook(None, "loop.trial", trial)
         return trial
 
-    def _run_and_parse_metric(self, workspace: Path, ctl: dict[str, Any]) -> float:
+    def _run_and_parse_metric(
+        self,
+        workspace: Path,
+        ctl: dict[str, Any],
+        extra_env: dict[str, str] | None = None,
+    ) -> float:
         cmd = ctl["run_command"]
         timeout = float(ctl.get("time_budget_seconds") or 60)
-        result = run_sandboxed(cmd, workspace, timeout=timeout, strict_cmd=True)
+        result = run_sandboxed(cmd, workspace, timeout=timeout, strict_cmd=True, extra_env=extra_env)
         output = (result.stdout or "") + "\n" + (result.stderr or "")
         pattern = ctl["metric"]["parse_regex"]
         # Use last match so agents cannot prepend a fake val_loss= print (Phase 5)
@@ -367,6 +418,141 @@ class LoopService:
                 f"metric not found (rc={result.returncode}) regex={pattern!r}: {output[:500]}"
             )
         return float(matches[-1].group(1))
+
+    def _evaluate_paired(
+        self,
+        workspace: Path,
+        git: GitWorkspace,
+        ctl: dict[str, Any],
+        incumbent_hash: str,
+        candidate_hash: str,
+    ) -> tuple[bool, dict[str, Any], float | None]:
+        kg = ctl.get("keep_gate") or {}
+        seeds = [int(s) for s in (kg.get("seeds") or [])]
+        n_min = int(kg.get("n_min") or 3)
+        n_max = int(kg.get("n_max") or max(n_min, len(seeds) or n_min))
+        alpha = float(kg.get("alpha") or 0.05)
+        lam = float(kg.get("lambda") or 0.4)
+        seed_env = str(kg.get("seed_env") or "AGENTIC_EVAL_SEED")
+        if not seeds:
+            seeds = list(range(n_min))
+        seeds = seeds[:n_max]
+
+        wealth = 1.0
+        wins = 0
+        losses = 0
+        inc_vals: list[float] = []
+        cand_vals: list[float] = []
+        early = False
+        direction = ctl["metric"]["direction"]
+        comparison = ctl["comparison"]["function"]
+        epsilon = ctl["comparison"].get("epsilon")
+
+        for i, seed in enumerate(seeds):
+            env = {seed_env: str(seed)}
+            git.reset_hard(incumbent_hash)
+            inc = self._run_and_parse_metric(workspace, ctl, extra_env=env)
+            git.reset_hard(candidate_hash)
+            cand = self._run_and_parse_metric(workspace, ctl, extra_env=env)
+            inc_vals.append(inc)
+            cand_vals.append(cand)
+            won = InvariantGuard.require_metric_improvement(
+                direction=direction,
+                comparison=comparison,
+                baseline=inc,
+                candidate=cand,
+                epsilon=epsilon,
+            )
+            wealth = wealth_update(wealth, won, lam)
+            if won:
+                wins += 1
+            else:
+                losses += 1
+            remaining = len(seeds) - (i + 1)
+            n_pairs = wins + losses
+            if should_keep(wealth, n_pairs, n_min, alpha):
+                break
+            if n_pairs >= n_min and not can_still_reach(wealth, remaining, lam, alpha):
+                early = True
+                break
+
+        n_pairs = wins + losses
+        mean_inc = sum(inc_vals) / len(inc_vals) if inc_vals else None
+        mean_cand = sum(cand_vals) / len(cand_vals) if cand_vals else None
+        cert = {
+            "mode": "paired_pace",
+            "n_pairs": n_pairs,
+            "wins": wins,
+            "losses": losses,
+            "e_value": wealth,
+            "alpha": alpha,
+            "mean_incumbent": mean_inc,
+            "mean_candidate": mean_cand,
+            "early_stopped": early,
+        }
+        keep = should_keep(wealth, n_pairs, n_min, alpha)
+        return keep, cert, mean_cand
+
+    def _store_fingerprint(
+        self, loop_id: str, control_document_id: str, fingerprint: str, trial_id: str
+    ) -> None:
+        self.db.execute(
+            "INSERT INTO trial_fingerprints "
+            "(loop_id, control_document_id, fingerprint, trial_id, created_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (loop_id, control_document_id, fingerprint, trial_id, utc_now_iso()),
+        )
+
+    def _push_evidence(
+        self,
+        workspace: Path,
+        trial: dict[str, Any],
+        agent_id: str,
+        hypothesis: str,
+    ) -> None:
+        if not self.dag or not trial.get("commit_hash"):
+            return
+        status = trial["status"]
+        dag_status = "kept" if status == "kept" else "reverted" if status == "reverted" else "evidence"
+        try:
+            self.dag.push(
+                workspace,
+                agent_id=agent_id,
+                hypothesis=hypothesis,
+                metric_name=trial.get("metric_name"),
+                metric_value=trial.get("metric_value"),
+                status=dag_status,
+            )
+        except Exception:
+            pass
+
+    def _record_evaluation(
+        self, trial: dict[str, Any], cert: dict[str, Any], better: bool
+    ) -> None:
+        from agentic_platform.eval.service import EvalService
+
+        # Persist a sealed EvaluationResult without seeds. LoopService may
+        # not own EvalService; write through the same DB table if present.
+        payload = {
+            "id": new_id("eval_"),
+            "decision": "pass" if better else "fail",
+            "target": trial.get("commit_hash") or trial["id"],
+            "rubric": "paired_pace sealed keep-gate",
+            "confidence": 1.0,
+            "created_at": utc_now_iso(),
+            "e_value": cert.get("e_value"),
+            "n_instances": cert.get("n_pairs"),
+            "sealed": True,
+            "pair_summary": {
+                "wins": cert.get("wins"),
+                "losses": cert.get("losses"),
+                "mean_incumbent": cert.get("mean_incumbent"),
+                "mean_candidate": cert.get("mean_candidate"),
+                "early_stopped": cert.get("early_stopped"),
+            },
+            "notes": "sealed; seeds omitted",
+        }
+        EvalService(self.db).create(payload)
 
     def recover(self, loop_id: str) -> dict[str, Any]:
         """Phase 5 recovery: hard-reset workspace to last kept best; re-mark loop running."""

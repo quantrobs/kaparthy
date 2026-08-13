@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kaparthy.dev/contracts/v0.1.2/budget-declaration.schema.json",
+  "title": "BudgetDeclaration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id"],
+  "properties": {
+    "id": { "type": "string" },
+    "max_model_calls": { "type": "integer", "minimum": 0 },
+    "max_sub_agents": { "type": "integer", "minimum": 0 },
+    "max_concurrent_workers": { "type": "integer", "minimum": 0 },
+    "max_tool_calls": { "type": "integer", "minimum": 0 },
+    "max_tokens": { "type": "integer", "minimum": 0 },
+    "max_wall_clock_seconds": { "type": "number", "minimum": 0 },
+    "max_cost_usd": { "type": "number", "minimum": 0 },
+    "max_retries": { "type": "integer", "minimum": 0 },
+    "max_graph_writes": { "type": "integer", "minimum": 0 },
+    "min_evidence_for_finalization": { "type": "integer", "minimum": 0 }
+  }
+}

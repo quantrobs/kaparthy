@@ -1,7 +1,7 @@
 # Operations Runbook — Agentic Research Platform
 
-**Phase:** 5 (Integration & Hardening)  
-**Contract:** `v0.1.0-frozen` schemas · OpenAPI `0.1.1`
+**Phase:** 6 (sealed keep-gate, frontier filter, leaf search)  
+**Contract:** `v0.1.2` schemas · OpenAPI `0.1.2` (v0.1.0 documents still validate)
 
 ## Start / stop
 
@@ -45,6 +45,14 @@ POST /loops/{id}/recover
 
 Resets working tree to `best_commit`, re-runs metric, returns `metric_ok` / `matches_best`.
 
+## Sealed keep-gate
+
+Declare `keep_gate.mode: paired_pace` plus sealed `seeds` on the control document for overnight pilots. Seeds never appear in `program.md` or the context pack. Default remains `single_shot` so existing §8 tests stay green.
+
+## Release gates
+
+A release is `pytest -m release_gate` green plus `GET /ready`. See `docs/release-gates.md`.
+
 ## Sandbox policy
 
 | Control | Behavior |
@@ -63,6 +71,7 @@ Resets working tree to `best_commit`, re-runs metric, returns `metric_ok` / `mat
 | `budget_exhausted` | Read `partial_result`; raise budget or stop |
 | DAG `commit not in bare Git` | Push real commits; never invent hashes |
 | `/ready` 503 | Inspect `db` / `hub` / `schemas` fields on `/health` |
+| All `rejected` `duplicate_of` | Distinct structural edit or new hparams required |
 
 ## Backup
 
@@ -78,3 +87,4 @@ Resets working tree to `best_commit`, re-runs metric, returns `metric_ok` / `mat
 - [ ] Dev key revoked or unused in shared env  
 - [ ] Workspaces on isolated volume  
 - [ ] No secrets in `program.md` or board posts  
+- [ ] `keep_gate.seeds` never pasted into `program.md`  

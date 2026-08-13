@@ -34,3 +34,6 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+    "release_gate: standing Phase 6 release gate (C8)",
+]

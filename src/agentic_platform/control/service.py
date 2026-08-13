@@ -26,7 +26,9 @@ class ControlService:
         except SandboxError as e:
             raise ValueError(f"invalid run_command: {e}") from e
         doc = ControlDocument.model_validate(data)
-        as_dict = doc.model_dump(mode="json", exclude_none=True)
+        as_dict = doc.model_dump(mode="json", exclude_none=True, by_alias=True)
+        # Never persist/render is fine; still store seeds on the control doc
+        # (they are operator-sealed). Agents see redacted views only.
         assert_valid("ControlDocument", as_dict)
         self.db.execute(
             "INSERT INTO control_documents (id, version, payload, created_at) VALUES (?, ?, ?, ?)",
@@ -51,6 +53,15 @@ class ControlService:
         comparison = ctl.get("comparison") or {}
         protected = ", ".join(ctl.get("protected_paths") or []) or "(none)"
         mutable = ", ".join(ctl.get("mutable_paths") or []) or "(any non-protected)"
+        kg = ctl.get("keep_gate") or {}
+        keep_gate_lines = ""
+        if kg:
+            keep_gate_lines = (
+                f"## Keep gate\n- mode: {kg.get('mode', 'single_shot')}\n"
+                f"- n_min: {kg.get('n_min', '(default)')} (instance seeds are sealed)\n"
+                f"- n_max: {kg.get('n_max', '(default)')}\n"
+                ""
+            )
         return "\n".join(
             [
                 header + "# Control Program (rendered)",
@@ -69,6 +80,7 @@ class ControlService:
                 "",
                 f"## Keep criteria\n{ctl.get('keep_criteria', '')}",
                 "",
+                keep_gate_lines,
                 f"## Escalation\n{ctl.get('escalation_criteria', '')}",
                 "",
                 f"## Exhaustion\n{ctl.get('exhaustion_criteria', '')}",

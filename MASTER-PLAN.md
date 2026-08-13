@@ -28,6 +28,8 @@ This plan synthesizes:
 - IT Architect derivations: interface contracts, data models, invariants, acceptance tests, and phased roadmap.
 - Frozen API contracts `v0.1.0-frozen` (OpenAPI + JSON Schemas).
 
+The annotated, layer-mapped collection of these sources plus Phase 6 candidate papers lives in [`docs/bibliography.md`](docs/bibliography.md). That file does not override this plan.
+
 ---
 
 ## 3. Architecture Overview
@@ -218,6 +220,8 @@ Every important output must be reconstructible to:
 | 2026-07-28 | Phase 5: sandbox, auth keys, WAL locks, recover API, CI, runbook (ADR-005)| IT Architect       |
 | 2026-07-28 | Metric parse uses last regex match (anti fake-print cheat)               | IT Architect       |
 | 2026-07-28 | Phase 5 complete; Phase 6 production pilot authorized                    | IT Architect       |
+| 2026-08-12 | Collected bibliography committed at `docs/bibliography.md`               | IT Architect       |
+| 2026-08-12 | Phase 6 WP1–6 implemented: v0.1.2 keep-gate, fingerprints, leaf parent, briefing, GraphFlow projector, release gates | IT Architect       |
 
 ---
 
@@ -228,11 +232,11 @@ Every important output must be reconstructible to:
 **Immediate Actions**
 
 1. **Ops** — Run a real pilot workload with `AGENTIC_REQUIRE_AUTH=1` and rotated admin token.  
-2. **Architect** — Pilot metrics: keep rate, crash rate, budget exhaustion rate, recovery success.  
+2. **Architect** — Execute ADR-006 in order 6 → 1 → 2 → 3 → 4 → 5. Pilot metrics: keep rate, crash rate, budget exhaustion, recovery, leaves/kept, duplicate-reject, pack clusters, subgraph diversity.  
 3. **Security** — Optional P3: cgroups / network namespace (out of process scope until pilot demands it).
 
 **Single most important action right now**  
-Execute Phase 6 pilot on a real research task using the hostile loop + simple agent; do not relax sandbox or keep-path rules.
+Implement Wave A (`docs/phase6-technical-plan.md`): a keep is a sealed certificate, not one lucky seed. Do not relax sandbox or keep-path rules.
 
 ---
 
@@ -245,6 +249,10 @@ Execute Phase 6 pilot on a real research task using the hostile loop + simple ag
 - Karpathy, A. — “Verifiability”, “Animals vs Ghosts”, 2025 LLM Year in Review (Bear blog).
 - Anthropic — Building Effective Agents (2024), Dynamic Workflows (2026), Knowledge Graph Construction Cookbook.
 - Frozen contracts: `/home/workdir/artifacts/contracts/v0.1.0/`.
+
+Annotated collection, layer mapping, steal / do-not-steal notes, and Phase 6 candidates: [`docs/bibliography.md`](docs/bibliography.md).
+
+Prioritized engineering plan for the candidates that floated: [`docs/phase6-technical-plan.md`](docs/phase6-technical-plan.md) (ADR-006).
 
 ---
 

@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from agentic_platform.core.platform import Platform
 from agentic_platform.storage.git_repo import GitWorkspace
 from tests.conftest import make_control_payload
 
 
+@pytest.mark.release_gate
 def test_context_pack_includes_essentials_and_budget(platform: Platform, tmp_path: Path) -> None:
     ctl = platform.control.create(make_control_payload())
     ws = tmp_path / "ws"
