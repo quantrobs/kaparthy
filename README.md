@@ -1,39 +1,33 @@
-# SealedKeep
+Only real improvements survive. We test every change against live markets, and we throw out the rest. You must measure each update closely, because models that look good on paper often fail under pressure. We don't keep theoretical gains; instead, we use our local LLM infrastructure to filter the noise and retain only the code that actually makes money.
 
-**Only real improvements survive.**
+SealedKeep operates a continuous experiment loop that integrates both code and research workflows. You can use this system to test hypotheses rapidly, refine your models, and apply empirical data directly to your projects. By automating the cycle, we ensure that technology development and research information don't diverge, allowing your team to iterate with confidence.
 
-SealedKeep runs an experiment loop for code and research work.
+An agent or a simple script modifies the code, and a fixed command evaluates the result against a baseline. If the metric improves, the system permanently keeps the modification; otherwise, it discards the attempt and reverts the files to the last working version.
 
-An agent (or a simple script) changes something. A fixed command measures the result. If the number got better, the change stays. If it did not, the change is thrown away and the files go back to the last good version.
+That constitutes the entire product. Every other component exists solely to enforce this rule.
 
-That is the whole product. Everything else exists to keep that rule honest.
+**Acknowledgement**
 
-**Acknowledgement: This work was inspired by my readings on Kaparthy.  A bibliography is here: docs/bibliography.md
+I drew inspiration for this work from Karpathy's writings. You can find the bibliography at docs/bibliography.md.
 
-## What matters
-
-**The score has to come from a real run.**  
+What matters
+The score has to come from a real run.
 SealedKeep reads the number from the evaluation command’s output. An agent cannot type in a better score and keep the change. Printing a fake number in the middle of the output does not work either. The last real match wins.
 
-**The test itself is off limits.**  
-The agent can edit the experiment. It cannot edit the evaluation, the holdout data, or other protected files. If it tries, the trial is rejected before it is saved.
+The test itself remains off-limits. The agent can edit the experiment, but it cannot modify the evaluation, the holdout data, or other protected files. If the agent attempts to alter these files, the system rejects the trial before saving it.
 
-**A keep is not one lucky run.**  
-A change that looks good on a single seed is not enough when the keep-gate is on. The keep has to hold up. That is what “sealed” means.
+A successful keep does not rely on a single lucky run, nor does a change that looks good on one seed suffice when you enable the keep-gate. The keep has to hold up. That's what we mean by a "sealed" state.
 
-**History is not deleted.**  
-Every try is a Git commit. The ones that failed stay in the record. You can see what was tried, what won, and what was reverted. The current best is always a commit you can check out.
+History is not deleted, since every attempt is a Git commit and the iterations that failed stay in the record. You can see exactly what was tried, what won, and what was reverted. The current best version is always a commit you can check out.
 
-**The working copy stays runnable.**  
-A crash or a reject rolls back to the last kept version. You do not come back to a half-broken tree.
+The working copy remains runnable. If the system crashes or rejects an update, it rolls back to the last kept version, so you do not return to a half-broken tree.
 
-**The model does not get to set the rules.**  
-The goal, the metric, the time and token limits, and the keep/revert policy live in a control file. Not in the prompt. Not in the agent’s memory.
+The model does not get to set the rules. You define the goal, the metric, the time and token limits, and the keep/revert policy in a control file, rather than in the prompt or the agent's memory.
 
-**Knowledge is optional and off by default.**  
-There is a graph for claims and sources if you want it. Agents cannot write to it unless you turn that on. Work history and “what we believe” are not the same pile.
+Knowledge remains optional and is disabled by default. If you require a graph for claims and sources, you can enable this feature, but agents cannot write to the graph unless you explicitly activate the setting. You must separate work history from what we believe, as these elements represent distinct data structures rather than a single repository.
 
-If you remember one sentence: **progress is only real when the evaluation command says so, and that decision is recorded.**
+If you remember only one sentence, make it this: progress is only real when the evaluation command confirms it, and you record that decision. You can't rely on intuition when you train local models; you must run the evaluation scripts, assess the metrics, and log the outcomes. Only when you save these results to your version control system does the work become a verifiable milestone.
+
 
 ## Try it
 
