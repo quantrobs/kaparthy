@@ -146,8 +146,10 @@ class GraphService:
         hops: int = 2,
         token_budget: int = 2000,
         prefer_verified: bool = True,
+        query: str | None = None,
     ) -> dict[str, Any]:
         """INV-12: context is a bounded subgraph only."""
+        _ = query  # v1: seed + metric proximity; query reserved for WP5 v2
         nodes: dict[str, dict[str, Any]] = {}
         edges: dict[str, dict[str, Any]] = {}
         frontier = list(seed_ids)
@@ -177,54 +179,28 @@ class GraphService:
                         next_frontier.append(other)
             frontier = next_frontier
 
-        # Serialize under token budget (approx 4 chars/token)
-        serialized_nodes = list(nodes.values())
-        serialized_edges = list(edges.values())
-        # Prefer verified claims first
-        if prefer_verified:
-            serialized_nodes.sort(
-                key=lambda n: (
-                    0 if n.get("type") != "Claim" else (0 if (n.get("provenance") or {}).get("source_ids") else 1),
-                    n.get("id", ""),
-                )
-            )
+        from agentic_platform.graph.flow import retrieve
 
-        triples = []
-        char_budget = token_budget * 4
-        used = 0
-        included_edges = []
-        included_nodes = {n["id"]: n for n in serialized_nodes if n["id"] in seed_ids}
-        used += sum(len(json.dumps(n)) for n in included_nodes.values())
-
-        for e in serialized_edges:
-            piece = f"{e['source']}-[{e['type']}]->{e['target']}"
-            cost = len(piece) + 8
-            if used + cost > char_budget:
-                break
-            triples.append(piece)
-            included_edges.append(e)
-            used += cost
-            for endpoint in (e["source"], e["target"]):
-                if endpoint not in included_nodes:
-                    n = nodes.get(endpoint)
-                    if n:
-                        included_nodes[endpoint] = n
-                        used += len(json.dumps(n))
-
+        inc_nodes, inc_edges, triples, used, truncated = retrieve(
+            nodes, list(edges.values()), seed_ids, token_budget, prefer_verified
+        )
         # Always include seed nodes even if budget tight
+        have = {n["id"] for n in inc_nodes}
         for sid in seed_ids:
-            if sid in nodes and sid not in included_nodes:
-                included_nodes[sid] = nodes[sid]
+            if sid in nodes and sid not in have:
+                inc_nodes.append(nodes[sid])
 
         return {
-            "nodes": list(included_nodes.values()),
-            "edges": included_edges,
+            "nodes": inc_nodes,
+            "edges": inc_edges,
             "triples": triples,
-            "edge_ids": [e["id"] for e in included_edges],
+            "edge_ids": [e["id"] for e in inc_edges],
             "token_budget": token_budget,
             "approx_tokens_used": used // 4,
-            "truncated": used // 4 >= token_budget or len(included_edges) < len(serialized_edges),
+            "truncated": truncated or used // 4 >= token_budget or len(inc_edges) < len(edges),
             "token_accounting": "approx_chars_div_4",
+            "ranker": "graphflow-v1",
+            "diversity": "mmr_hparam_cluster",
         }
 
     def _upsert_node(self, node: dict[str, Any]) -> None:

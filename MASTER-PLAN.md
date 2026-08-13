@@ -221,7 +221,7 @@ Every important output must be reconstructible to:
 | 2026-07-28 | Metric parse uses last regex match (anti fake-print cheat)               | IT Architect       |
 | 2026-07-28 | Phase 5 complete; Phase 6 production pilot authorized                    | IT Architect       |
 | 2026-08-12 | Collected bibliography committed at `docs/bibliography.md`               | IT Architect       |
-| 2026-08-12 | ADR-006 Phase 6 WP1–6 (sealed keep, dedup, leaves, briefing, GraphFlow, gates) | IT Architect       |
+| 2026-08-12 | Phase 6 WP1–6 implemented: v0.1.2 keep-gate, fingerprints, leaf parent, briefing, GraphFlow projector, release gates | IT Architect       |
 
 ---
 

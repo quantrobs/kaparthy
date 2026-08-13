@@ -7,6 +7,7 @@ from typing import Optional
 
 import typer
 
+from agentic_platform.agents.leaf_search_agent import LeafSearchAgent
 from agentic_platform.agents.simple_loop_agent import SimpleLoopAgent
 from agentic_platform.core.paths import default_data_dir
 from agentic_platform.core.platform import Platform
@@ -112,10 +113,12 @@ def agent_run(
     max_trials: int = typer.Option(8, "--max-trials"),
     agent: str = typer.Option("simple-agent", "--agent", "-a"),
     enable_graph: bool = typer.Option(False, "--enable-graph-writes"),
+    kind: str = typer.Option("simple", "--kind", help="simple | leaf"),
 ) -> None:
-    """Run the heuristic simple loop agent (no LLM required)."""
+    """Run a heuristic loop agent (no LLM required)."""
     p = _platform()
-    runner = SimpleLoopAgent(
+    cls = LeafSearchAgent if kind == "leaf" else SimpleLoopAgent
+    runner = cls(
         p, loop_id=loop_id, agent_id=agent, enable_graph_writes=enable_graph
     )
     result = runner.run(max_trials=max_trials)

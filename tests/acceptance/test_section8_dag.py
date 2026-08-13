@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+import pytest
+
 from agentic_platform.core.platform import Platform
 from agentic_platform.storage.git_repo import GitWorkspace
 
@@ -18,6 +20,7 @@ def _workspace_with_content(path: Path, content: str) -> str:
     return git.commit(content[:40])
 
 
+@pytest.mark.release_gate
 def test_three_concurrent_agents_divergent_children(platform: Platform, tmp_path: Path) -> None:
     root_ws = tmp_path / "root"
     root_hash = _workspace_with_content(root_ws, "root\n")

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class MetricSpec(BaseModel):
@@ -15,6 +15,32 @@ class MetricSpec(BaseModel):
 class ComparisonSpec(BaseModel):
     function: Literal["strictly_better", "better_or_equal", "within_epsilon"]
     epsilon: float | None = None
+
+
+class KeepGate(BaseModel):
+    """Optional sealed keep-gate (WP1). Seeds are never agent-visible."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    mode: Literal["single_shot", "paired_pace"] = "single_shot"
+    n_min: int | None = None
+    n_max: int | None = None
+    alpha: float | None = None
+    bet_lambda: float | None = Field(default=None, alias="lambda")
+    seeds: list[int] | None = None
+    seed_env: str | None = None
+
+
+class KeepCertificate(BaseModel):
+    mode: str
+    n_pairs: int
+    wins: int
+    losses: int
+    e_value: float | None = None
+    alpha: float | None = None
+    mean_incumbent: float | None = None
+    mean_candidate: float | None = None
+    early_stopped: bool = False
 
 
 class ControlDocument(BaseModel):
@@ -33,6 +59,7 @@ class ControlDocument(BaseModel):
     program_md: str | None = None
     created_at: str | None = None
     created_by: str | None = None
+    keep_gate: KeepGate | None = None
 
 
 class Trial(BaseModel):
@@ -51,6 +78,8 @@ class Trial(BaseModel):
     error: str | None = None
     created_at: str | None = None
     finished_at: str | None = None
+    fingerprint: str | None = None
+    keep_certificate: KeepCertificate | None = None
 
 
 class CommitNode(BaseModel):
@@ -133,6 +162,10 @@ class EvaluationResult(BaseModel):
     notes: str | None = None
     run_id: str | None = None
     created_at: str | None = None
+    e_value: float | None = None
+    n_instances: int | None = None
+    sealed: bool | None = None
+    pair_summary: dict[str, Any] | None = None
 
 
 class BudgetDeclaration(BaseModel):

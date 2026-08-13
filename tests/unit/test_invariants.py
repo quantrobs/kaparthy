@@ -40,3 +40,16 @@ def test_oversized_diff() -> None:
         InvariantGuard.reject_oversized_diff(["a"] * 50, 10)
     with pytest.raises(InvariantError):
         InvariantGuard.reject_oversized_diff(["a"], InvariantGuard.MAX_DIFF_BYTES + 1)
+
+
+def test_holdout_authorship_blocked() -> None:
+    with pytest.raises(InvariantError) as ei:
+        InvariantGuard.reject_holdout_authorship(["keep_gate.json"])
+    assert ei.value.code == 2
+
+
+def test_sealed_keep_requires_certificate() -> None:
+    with pytest.raises(InvariantError) as ei:
+        InvariantGuard.require_sealed_keep(None, "paired_pace")
+    assert ei.value.code == 2
+    InvariantGuard.require_sealed_keep(None, "single_shot")

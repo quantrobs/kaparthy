@@ -107,9 +107,12 @@ def run_sandboxed(
     timeout: float,
     *,
     strict_cmd: bool = True,
+    extra_env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     validate_run_command(cmd, strict=strict_cmd)
     env = scrubbed_env()
+    if extra_env:
+        env.update(extra_env)
     try:
         return subprocess.run(
             cmd,

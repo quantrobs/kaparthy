@@ -3,9 +3,9 @@
 Production oriented implementation of the **Agentic Research Platform** Master Plan: measured loops, commit DAGs (AgentHub), Software 3.0 control/evaluation/budgets, and a knowledge-graph overlay.
 This repo was influenced by a number of papers that read about or from Kaparthy.
 
-**Contract version:** `v0.1.0-frozen` schemas · OpenAPI `0.1.1`  
+**Contract version:** `v0.1.2` (additive; `v0.1.0-frozen` still accepted) · OpenAPI `0.1.2`  
 **Authority:** IT Architect  
-**Phase:** 5 complete (integration & hardening) · Phase 6 pilot authorized
+**Phase:** 6 in progress (WP6 gates + sealed keep + frontier + leaves)
 
 ## Kaparthy correction (must-know)
 

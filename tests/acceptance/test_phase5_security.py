@@ -50,6 +50,7 @@ def test_unknown_key_rejected(platform: Platform, monkeypatch: pytest.MonkeyPatc
         platform.auth.resolve("not-a-real-key")
 
 
+@pytest.mark.release_gate
 def test_require_auth_blocks_anonymous(platform: Platform) -> None:
     platform.auth.require_auth = True
     with pytest.raises(AuthError):
@@ -68,6 +69,7 @@ def test_create_and_resolve_agent_key(platform: Platform) -> None:
     assert all("key_fingerprint" in a and "key" not in a for a in agents)
 
 
+@pytest.mark.release_gate
 def test_recover_after_dirty_tree(platform: Platform, workspace: Path) -> None:
     ctl = platform.control.create(make_control_payload())
     loop = platform.loops.start(ctl["id"], workspace)

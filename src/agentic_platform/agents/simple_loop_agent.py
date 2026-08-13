@@ -57,6 +57,8 @@ class SimpleLoopAgent:
                 program = program_path.read_text(encoding="utf-8")[:4000]
 
             edits = self._propose_edit(workspace, i)
+            if not edits:
+                continue
             hypothesis = f"heuristic trial {i}: {edits.get('_note', 'mutate hparams')}"
             edits.pop("_note", None)
 
@@ -185,8 +187,7 @@ class SimpleLoopAgent:
         new = sub("HIDDEN", hidden, new)
         new = sub("L2", l2, new)
         if new == text:
-            # Force a comment bump so git sees a change even if grids collide
-            new = text.rstrip() + f"\n# agent touch {i}\n"
+            return {}
         return {
             "train.py": new,
             "_note": f"LR={lr} STEPS={steps} HIDDEN={hidden} L2={l2}",

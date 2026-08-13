@@ -218,6 +218,7 @@ class DagService:
         char_budget = token_budget * 4
         sections: list[str] = []
         truncated = False
+        control_summary = self.redact_control(control_summary)
 
         essentials: list[str] = [
             "CONTEXT PACK — bounded; do not assume full history.",
@@ -235,6 +236,11 @@ class DagService:
                 f"metric: {control_summary.get('metric')} "
                 f"comparison: {control_summary.get('comparison')}"
             )
+            kg = control_summary.get("keep_gate") or {}
+            if kg:
+                essentials.append(
+                    f"keep_gate.mode: {kg.get('mode', 'single_shot')} seeds=sealed"
+                )
             essentials.append(
                 "CONTROL: "
                 + json.dumps(
@@ -263,6 +269,19 @@ class DagService:
 
         used = sum(len(s) for s in essentials)
         sections.extend(essentials)
+
+        briefing: list[dict[str, Any]] = []
+        if leaf:
+            from agentic_platform.dag.communities import brief_leaves
+
+            briefing = brief_leaves(self.leaves())
+            for cluster in briefing:
+                line = f"BRIEFING {cluster['text']}"
+                if used + len(line) > char_budget:
+                    truncated = True
+                    break
+                sections.append(line)
+                used += len(line)
 
         if leaf:
             lineage = self.lineage(leaf)[:lineage_k]
@@ -307,7 +326,22 @@ class DagService:
             "truncated": truncated,
             "token_accounting": "approx_chars_div_4",
             "sections": len(sections),
+            "briefing": briefing,
         }
+
+    @staticmethod
+    def redact_control(control_summary: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Strip sealed keep_gate.seeds from any agent-visible control dump."""
+        if not control_summary:
+            return control_summary
+        out = dict(control_summary)
+        kg = out.get("keep_gate")
+        if isinstance(kg, dict) and "seeds" in kg:
+            kg = dict(kg)
+            kg.pop("seeds", None)
+            kg["seeds_sealed"] = True
+            out["keep_gate"] = kg
+        return out
 
     def checkout(self, commit_hash: str, dest: Path) -> Path:
         full = self._resolve_hash(commit_hash)

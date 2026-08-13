@@ -63,6 +63,27 @@ class InvariantGuard:
             raise InvariantError(2, "metric_override cannot keep (hostile evaluation)")
 
     @staticmethod
+    def require_sealed_keep(certificate: dict[str, Any] | None, mode: str) -> None:
+        """INV-02: paired_pace keep is illegal without a sealed certificate."""
+        if mode != "paired_pace":
+            return
+        if not certificate:
+            raise InvariantError(2, "paired_pace requires a keep_certificate")
+        if certificate.get("mode") != "paired_pace":
+            raise InvariantError(2, "keep_certificate.mode must be paired_pace")
+        if certificate.get("n_pairs", 0) < 1:
+            raise InvariantError(2, "keep_certificate has no pairs")
+
+    @staticmethod
+    def reject_holdout_authorship(changed_files: list[str]) -> None:
+        """INV-02 / C7: agent cannot author the sealed holdout surface."""
+        blocked = ("holdout", "keep_gate", "eval_seed", "eval-seed")
+        for path in changed_files:
+            name = path.replace("\\", "/").rsplit("/", 1)[-1].lower()
+            if any(b in name for b in blocked):
+                raise InvariantError(2, f"agent cannot author holdout/keep_gate: {path}")
+
+    @staticmethod
     def require_metric_improvement(
         direction: str,
         comparison: str,
