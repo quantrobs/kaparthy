@@ -1,5 +1,7 @@
 # SealedKeep
 
+**Acknowledgement: This work was inspired by my readings on Kaparthy.  A bibliography is here: docs/bibliography.md
+
 **Only real improvements survive.**
 
 SealedKeep runs an experiment loop for code and research work.
