@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kaparthy.dev/contracts/v0.1.0/run.schema.json",
+  "title": "Run",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "control_document_id",
+    "budget_id",
+    "status",
+    "consumed"
+  ],
+  "properties": {
+    "id": { "type": "string" },
+    "control_document_id": { "type": "string" },
+    "budget_id": { "type": "string" },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "running",
+        "completed",
+        "failed",
+        "budget_exhausted",
+        "cancelled"
+      ]
+    },
+    "consumed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model_calls",
+        "sub_agents",
+        "tokens",
+        "wall_clock_seconds",
+        "cost_usd",
+        "graph_writes"
+      ],
+      "properties": {
+        "model_calls": { "type": "integer", "minimum": 0 },
+        "sub_agents": { "type": "integer", "minimum": 0 },
+        "tokens": { "type": "integer", "minimum": 0 },
+        "wall_clock_seconds": { "type": "number", "minimum": 0 },
+        "cost_usd": { "type": "number", "minimum": 0 },
+        "graph_writes": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "audit_log_uri": { "type": ["string", "null"] },
+    "partial_result": { "type": ["object", "null"] },
+    "stop_reason": { "type": ["string", "null"] },
+    "created_at": { "type": "string", "format": "date-time" },
+    "finished_at": { "type": ["string", "null"], "format": "date-time" }
+  }
+}

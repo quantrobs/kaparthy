@@ -1,0 +1,265 @@
+openapi: 3.0.3
+info:
+  title: Agentic Research Platform API
+  version: 0.1.2
+  description: Frozen interface contracts for Control, Loops, DAG, Graph, Eval, and Runs. Additive v0.1.2: optional keep_gate / keep_certificate.
+servers:
+  - url: http://localhost:8080
+paths:
+  /control:
+    post:
+      operationId: createControlDocument
+      tags: [control]
+      summary: Create a versioned control document
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "./schemas/control-document.schema.json"
+      responses:
+        "201":
+          description: Created
+    get:
+      operationId: listControlDocuments
+      tags: [control]
+      responses:
+        "200":
+          description: List of control documents
+  /control/{id}:
+    get:
+      operationId: getControlDocument
+      tags: [control]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Control document
+  /loops:
+    post:
+      operationId: startLoop
+      tags: [loops]
+      summary: Start a measured ratchet loop run
+      responses:
+        "201":
+          description: Loop started
+  /loops/{id}/trials:
+    post:
+      operationId: proposeTrial
+      tags: [loops]
+      summary: Propose one trial (inspect→propose→commit→evaluate→keep/revert)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "201":
+          description: Trial recorded
+    get:
+      operationId: listTrials
+      tags: [loops]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Trial ledger
+  /loops/{id}/best:
+    get:
+      operationId: getBestTrial
+      tags: [loops]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Current best kept trial
+  /dag/push:
+    post:
+      operationId: dagPush
+      tags: [dag]
+      summary: Push HEAD commit metadata to hub
+      responses:
+        "201":
+          description: Commit node registered
+  /dag/fetch/{hash}:
+    get:
+      operationId: dagFetch
+      tags: [dag]
+      parameters:
+        - name: hash
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Commit node
+  /dag/children/{hash}:
+    get:
+      operationId: dagChildren
+      tags: [dag]
+      parameters:
+        - name: hash
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Child commits
+  /dag/leaves:
+    get:
+      operationId: dagLeaves
+      tags: [dag]
+      responses:
+        "200":
+          description: Frontier leaves
+  /dag/lineage/{hash}:
+    get:
+      operationId: dagLineage
+      tags: [dag]
+      parameters:
+        - name: hash
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Ancestry path
+  /dag/diff:
+    get:
+      operationId: dagDiff
+      tags: [dag]
+      parameters:
+        - name: a
+          in: query
+          required: true
+          schema: { type: string }
+        - name: b
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Diff between commits
+  /dag/board:
+    post:
+      operationId: boardPost
+      tags: [dag]
+      responses:
+        "201":
+          description: Post created
+    get:
+      operationId: boardList
+      tags: [dag]
+      responses:
+        "200":
+          description: Message board posts
+  /dag/context:
+    post:
+      operationId: dagContext
+      tags: [dag]
+      summary: Bounded Software 3.0 context pack (token_accounting approx_chars_div_4)
+      responses:
+        "200":
+          description: Context pack
+  /graph/updates:
+    post:
+      operationId: applyGraphUpdate
+      tags: [graph]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "./schemas/graph-update.schema.json"
+      responses:
+        "201":
+          description: Graph updated
+  /graph/subgraph:
+    post:
+      operationId: retrieveSubgraph
+      tags: [graph]
+      summary: Bounded subgraph retrieval under token budget
+      responses:
+        "200":
+          description: Serialized subgraph
+  /graph/resolve:
+    post:
+      operationId: resolveEntities
+      tags: [graph]
+      summary: Additive reversible entity resolution
+      responses:
+        "200":
+          description: Resolution applied
+  /eval:
+    post:
+      operationId: createEvaluation
+      tags: [eval]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "./schemas/evaluation-result.schema.json"
+      responses:
+        "201":
+          description: Evaluation recorded
+  /eval/{id}:
+    get:
+      operationId: getEvaluation
+      tags: [eval]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Evaluation result
+  /runs:
+    post:
+      operationId: createRun
+      tags: [runs]
+      responses:
+        "201":
+          description: Run created
+  /runs/{id}:
+    get:
+      operationId: getRun
+      tags: [runs]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Run with consumption and audit
+  /runs/{id}/audit:
+    get:
+      operationId: getRunAudit
+      tags: [runs]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Full audit trail
+components:
+  securitySchemes:
+    AgentKey:
+      type: apiKey
+      in: header
+      name: X-Agent-Key
+security:
+  - AgentKey: []

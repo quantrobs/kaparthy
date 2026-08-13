@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://kaparthy.dev/contracts/v0.1.2/control-document.schema.json",
+  "title": "ControlDocument",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "version",
+    "objective",
+    "protected_paths",
+    "metric",
+    "comparison",
+    "run_command",
+    "time_budget_seconds",
+    "keep_criteria",
+    "escalation_criteria",
+    "exhaustion_criteria"
+  ],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "version": { "type": "string", "minLength": 1 },
+    "objective": { "type": "string", "minLength": 1 },
+    "protected_paths": {
+      "type": "array",
+      "items": { "type": "string" },
+      "minItems": 0
+    },
+    "metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "direction", "parse_regex"],
+      "properties": {
+        "name": { "type": "string" },
+        "direction": { "type": "string", "enum": ["minimize", "maximize"] },
+        "parse_regex": { "type": "string" },
+        "unit": { "type": "string" }
+      }
+    },
+    "comparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["function"],
+      "properties": {
+        "function": {
+          "type": "string",
+          "enum": ["strictly_better", "better_or_equal", "within_epsilon"]
+        },
+        "epsilon": { "type": "number", "minimum": 0 }
+      }
+    },
+    "run_command": { "type": "string", "minLength": 1 },
+    "time_budget_seconds": { "type": "number", "exclusiveMinimum": 0 },
+    "keep_criteria": { "type": "string" },
+    "escalation_criteria": { "type": "string" },
+    "exhaustion_criteria": { "type": "string" },
+    "mutable_paths": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "program_md": { "type": "string" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "created_by": { "type": "string" },
+    "keep_gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "type": "string", "enum": ["single_shot", "paired_pace"] },
+        "n_min": { "type": "integer", "minimum": 1 },
+        "n_max": { "type": "integer", "minimum": 1 },
+        "alpha": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+        "lambda": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+        "seeds": {
+          "type": "array",
+          "items": { "type": "integer" }
+        },
+        "seed_env": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}
