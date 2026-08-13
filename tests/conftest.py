@@ -32,22 +32,9 @@ def workspace(tmp_path: Path) -> Path:
 
 
 def make_control_payload() -> dict:
-    return {
-        "objective": "Minimize validation loss via small train.py hyperparameter edits",
-        "protected_paths": ["prepare.py"],
-        "mutable_paths": ["train.py", "program.md"],
-        "metric": {
-            "name": "val_loss",
-            "direction": "minimize",
-            "parse_regex": r"val_loss=([0-9.eE+-]+)",
-            "unit": "loss",
-        },
-        "comparison": {"function": "strictly_better"},
-        "run_command": "python train.py",
-        "time_budget_seconds": 30,
-        "keep_criteria": "strictly lower val_loss from real run_command output",
-        "escalation_criteria": "human if 10 consecutive reverts",
-        "exhaustion_criteria": "stop after budget or plateaus",
-        "program_md": "Edit train.py hyperparameters only. Never touch prepare.py.",
-        "created_by": "architect",
-    }
+    """Test helper — same shape as demo; created_by remains architect for tests."""
+    from agentic_platform.demo.payloads import demo_control_payload
+
+    payload = demo_control_payload()
+    payload["created_by"] = "architect"
+    return payload

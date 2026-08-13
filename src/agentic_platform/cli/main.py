@@ -10,12 +10,18 @@ import typer
 from agentic_platform.agents.simple_loop_agent import SimpleLoopAgent
 from agentic_platform.core.paths import default_data_dir
 from agentic_platform.core.platform import Platform
+from agentic_platform.demo.bootstrap import bootstrap_demo
+from agentic_platform.demo.hostile import run_hostile_reject
+from agentic_platform.demo.show import show_demo
 
 app = typer.Typer(help="ah — AgentHub / Agentic Platform CLI", no_args_is_help=True)
+demo_app = typer.Typer(help="Live demo: bootstrap, athlete, hostile reject", no_args_is_help=True)
+app.add_typer(demo_app, name="demo")
 
 
-def _platform() -> Platform:
-    return Platform(Path(os.environ.get("AGENTIC_DATA", default_data_dir())))
+def _platform(data: Path | None = None) -> Platform:
+    root = data or Path(os.environ.get("AGENTIC_DATA", default_data_dir()))
+    return Platform(Path(root))
 
 
 @app.command()
@@ -121,6 +127,71 @@ def agent_run(
     result = runner.run(max_trials=max_trials)
     typer.echo(json.dumps(result, indent=2))
     p.close()
+
+
+@demo_app.command("bootstrap")
+def demo_bootstrap(
+    workspace: Optional[Path] = typer.Option(None, "--workspace", "-w"),
+    agent: str = typer.Option("demo", "--agent", "-a"),
+    data: Optional[Path] = typer.Option(None, "--data"),
+) -> None:
+    """Create control document + measured loop; print DemoBootstrapResult JSON."""
+    data_dir = data or Path(os.environ.get("AGENTIC_DATA", default_data_dir()))
+    result = bootstrap_demo(data_dir, workspace=workspace, agent_id=agent)
+    typer.echo(json.dumps(result, indent=2))
+
+
+@demo_app.command("hostile")
+def demo_hostile(
+    loop_id: str = typer.Option(..., "--loop"),
+    also_protected: bool = typer.Option(False, "--also-protected"),
+    agent: str = typer.Option("demo-hostile", "--agent", "-a"),
+    data: Optional[Path] = typer.Option(None, "--data"),
+) -> None:
+    """Prove metric_override cannot keep (INV-02); optional protected-path reject."""
+    p = _platform(data)
+    try:
+        result = run_hostile_reject(
+            p, loop_id, agent_id=agent, also_protected=also_protected
+        )
+        typer.echo(json.dumps(result, indent=2))
+        if not result.get("passed"):
+            raise typer.Exit(code=1)
+    finally:
+        p.close()
+
+
+@demo_app.command("athlete")
+def demo_athlete(
+    loop_id: str = typer.Option(..., "--loop"),
+    max_trials: int = typer.Option(8, "--max-trials"),
+    agent: str = typer.Option("simple-agent", "--agent", "-a"),
+    enable_graph: bool = typer.Option(False, "--enable-graph-writes"),
+    data: Optional[Path] = typer.Option(None, "--data"),
+) -> None:
+    """Run the heuristic athlete on a demo loop (no LLM)."""
+    p = _platform(data)
+    try:
+        runner = SimpleLoopAgent(
+            p, loop_id=loop_id, agent_id=agent, enable_graph_writes=enable_graph
+        )
+        result = runner.run(max_trials=max_trials)
+        typer.echo(json.dumps(result, indent=2))
+    finally:
+        p.close()
+
+
+@demo_app.command("show")
+def demo_show(
+    loop_id: str = typer.Option(..., "--loop"),
+    data: Optional[Path] = typer.Option(None, "--data"),
+) -> None:
+    """Operator snapshot: best, recent trials, leaves, board, talking points."""
+    p = _platform(data)
+    try:
+        typer.echo(json.dumps(show_demo(p, loop_id), indent=2))
+    finally:
+        p.close()
 
 
 if __name__ == "__main__":

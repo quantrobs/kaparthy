@@ -6,6 +6,38 @@ Production-oriented implementation of the **Agentic Research Platform** Master P
 **Authority:** IT Architect  
 **Phase:** 5 complete (integration & hardening) · Phase 6 pilot authorized
 
+## What this application does
+
+This platform is infrastructure for **agentic research loops**—systems where AI agents (or simple heuristic agents) iteratively improve a measurable objective under hard constraints.
+
+In practice it:
+
+1. **Runs measured experiments** — An agent proposes a change, runs a fixed evaluation command, and keeps the change only if the declared metric actually improved. Reverts are automatic; the working tree stays runnable.
+2. **Records experiment lineage** — Every trial is a Git commit in a DAG (AgentHub-style). Leaves are the frontier; failed branches stay as evidence, not deleted history.
+3. **Externalizes control** — Objectives, protected files, metrics, budgets, and keep/revert rules live in versioned control documents—not inside a single LLM context window.
+4. **Evaluates and budgets** — Structured pass/fail/revise decisions and explicit resource limits (time, tokens, graph writes) sit outside the agent.
+5. **Optionally overlays a knowledge graph** — Durable claims, sources, and provenance on top of the commit DAG. Graph writes are off by default so agents cannot invent “knowledge” without opt-in.
+
+The demo workspace (`examples/demo_workspace/`) is a tiny CPU trainer: mutate hyperparameters in `train.py`, never touch `prepare.py`, minimize `val_loss`, keep only on real improvement.
+
+## Why this matters for agentic computing
+
+Agentic computing moves beyond one-shot prompts: agents plan, act, observe, and iterate over long horizons. That only works if **verifiability and memory live outside the model**.
+
+Without infrastructure like this, agentic systems tend to:
+
+- **Hallucinate progress** — claiming a better metric without a real run
+- **Lose lineage** — no recoverable path from “best result” back to hypothesis, parent commit, and evaluator decision
+- **Overwrite the eval surface** — agents “cheat” by editing the test or metric definition
+- **Blow budgets** — unbounded tool calls, tokens, or graph writes overnight
+- **Confuse work history with domain knowledge** — stuffing everything into one undifferentiated store
+
+This platform treats those failure modes as first-class design constraints (the “Kaparthy correction”): hostile metrics (keeps only from parsed `run_command` stdout), Git as truth, bounded context packs, and KG humility. The central invariant is full traceability:
+
+> objective → plan → artifact → source → graph path → evaluator decision → bounded execution record
+
+That is the difference between a demo that looks smart in a chat transcript and a research loop you can run overnight, audit, recover, and hand to another agent or human.
+
 ## Kaparthy correction (must-know)
 
 | Rule | Enforcement |
@@ -55,9 +87,18 @@ ah agent-run --loop <loop_id> --max-trials 8
 
 Dev agent key: `X-Agent-Key: architect-dev-key`.
 
-## Demo workspace
+## Demo
 
-`examples/demo_workspace/` — tiny CPU trainer with mutable `LR`/`STEPS`/`HIDDEN`/`L2`, protected `prepare.py`, living `program.md`.
+15–20 min live path (no LLM): bootstrap → athlete → inspect → hostile reject.
+
+```powershell
+$env:AGENTIC_DATA = ".\data"
+ah demo bootstrap
+ah demo athlete --loop <loop_id> --max-trials 8
+ah demo hostile --loop <loop_id>
+```
+
+Full room script: [docs/demo.md](docs/demo.md). Trainer reference: `examples/demo_workspace/`.
 
 ## Phase 5 hardening
 
