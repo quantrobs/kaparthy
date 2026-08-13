@@ -100,7 +100,7 @@ pytest -q
 
 ```powershell
 python -m venv .venv
-.\.​venv\Scripts\Activate.ps1
+.\.venv\Scripts\Activate.ps1
 pip install -e ".[dev]"
 pytest -q
 ```
