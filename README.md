@@ -10,8 +10,9 @@ That constitutes the entire product. Every other component exists solely to enfo
 
 I drew inspiration for this work from Karpathy's writings. You can find the bibliography at docs/bibliography.md.
 
-What matters
+**What matters** 
 The score has to come from a real run.
+
 SealedKeep reads the number from the evaluation command’s output. An agent cannot type in a better score and keep the change. Printing a fake number in the middle of the output does not work either. The last real match wins.
 
 The test itself remains off-limits. The agent can edit the experiment, but it cannot modify the evaluation, the holdout data, or other protected files. If the agent attempts to alter these files, the system rejects the trial before saving it.
