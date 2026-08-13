@@ -1,4 +1,4 @@
-# Agentic Research Platform (kaparthy)
+# SealedKeep Agentic Research Platform
 
 Production oriented implementation of the **Agentic Research Platform** Master Plan: measured loops, commit DAGs (AgentHub), Software 3.0 control/evaluation/budgets, and a knowledge-graph overlay.
 This repo was influenced by a number of papers that read about or from Kaparthy.
